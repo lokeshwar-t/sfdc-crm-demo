@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Contracts{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Contracts</h1>
+<div class="card section-card">
+  <div class="card-body">
+    <table class="table table-hover align-middle datatable">
+      <thead><tr><th>Contract #</th><th>Account</th><th>Value</th><th>Start</th><th>End</th><th>Term</th><th>Status</th><th>Payment</th></tr></thead>
+      <tbody>
+      {% for c in rows %}
+      <tr>
+        <td class="fw-semibold">{{ c.number }}</td>
+        <td>{% if c.account %}<a class="entity-link" href="{{ url_for('mod.account_360', account_id=c.account_id) }}">{{ c.account.name }}</a>{% endif %}</td>
+        <td data-order="{{ c.value }}">{{ c.value|money }}</td>
+        <td class="text-muted">{{ c.start_date.strftime('%b %d, %Y') }}</td>
+        <td class="text-muted">{{ c.end_date.strftime('%b %d, %Y') }}</td>
+        <td class="text-muted">{{ c.term_months }} mo</td>
+        <td><span class="badge rounded-pill {{ 'text-bg-success' if c.status=='Active' else 'text-bg-secondary' }}">{{ c.status }}</span></td>
+        <td><span class="badge rounded-pill {{ 'text-bg-success' if c.payment_status=='Current' else ('text-bg-warning' if c.payment_status=='Late' else 'text-bg-danger') }}">{{ c.payment_status }}</span></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

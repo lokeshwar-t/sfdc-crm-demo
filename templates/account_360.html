@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+{% from "_macros.html" import kpi, health_badge, stage_badge, avatar, ai_button %}
+{% block title %}{{ a.name }}{% endblock %}
+{% block breadcrumb %}
+<nav class="breadcrumb mb-2">
+  <a class="breadcrumb-item" href="{{ url_for('mod.accounts') }}">Accounts</a>
+  <span class="breadcrumb-item active">{{ a.name }}</span>
+</nav>
+{% endblock %}
+{% block content %}
+
+<!-- Header -->
+<div class="card section-card mb-4">
+  <div class="card-body d-flex flex-wrap align-items-center gap-4">
+    <div class="d-flex align-items-center gap-3">
+      <span class="avatar" style="background:#6366f1;width:56px;height:56px;font-size:20px;border-radius:14px">{{ a.name[:2]|upper }}</span>
+      <div>
+        <h1 class="page-title mb-0">{{ a.name }}</h1>
+        <div class="text-muted small">{{ a.industry }} · {{ a.region }} · {{ a.segment }} · {{ "{:,}".format(a.employees or 0) }} employees · <a href="#">{{ a.website }}</a></div>
+      </div>
+    </div>
+    <div class="ms-auto d-flex flex-wrap gap-4 align-items-center">
+      <div class="text-center">
+        <div class="kpi-label">ARR</div><div class="kpi-value">{{ a.arr|money }}</div>
+      </div>
+      <div class="text-center">
+        <div class="kpi-label">Health</div>
+        <div>{{ health_badge(h.status) if h }} <span class="fw-bold">{{ h.score if h }}</span></div>
+      </div>
+      <div class="text-center">
+        <div class="kpi-label">Risk Score</div>
+        <div class="kpi-value {{ 'text-danger' if risk_score > 50 else 'text-success' }}">{{ risk_score }}</div>
+      </div>
+      <div class="text-center">
+        <div class="kpi-label">Owner</div>
+        <div class="small fw-semibold">{{ a.owner.name if a.owner }}</div>
+        <div class="text-muted" style="font-size:11px">CSM: {{ a.csm.name if a.csm else '—' }}</div>
+      </div>
+      <button class="btn btn-outline-secondary btn-sm" onclick="openEdit('editAccountModal', this)"
+        data-record='{{ {"id": a.id, "name": a.name, "industry": a.industry, "region": a.region, "segment": a.segment, "website": a.website or "", "employees": a.employees or "", "arr": a.arr or 0, "type": "customer" if a.is_customer else "prospect"}|tojson }}'>
+        <i class="fa-solid fa-pen me-1"></i>Edit</button>
+      {{ ai_button("AI Summary", "Summarize this account", a.id) }}
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <!-- Health breakdown -->
+  <div class="col-lg-4">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
+        <h6 class="fw-semibold mb-0"><i class="fa-solid fa-heart-pulse me-2 text-danger"></i>Health Score</h6>
+        {{ ai_button("Why?", "Explain why the health score dropped", a.id, "btn-light") }}
+      </div>
+      <div class="card-body">
+        {% if h %}
+        <div class="d-flex align-items-center gap-4 mb-3">
+          <div class="health-ring">
+            {% set col = '#22c55e' if h.status == 'Green' else ('#f59e0b' if h.status == 'Yellow' else '#ef4444') %}
+            <svg width="120" height="120">
+              <circle cx="60" cy="60" r="52" fill="none" stroke="#eef0f5" stroke-width="10"/>
+              <circle cx="60" cy="60" r="52" fill="none" stroke="{{ col }}" stroke-width="10"
+                stroke-linecap="round" stroke-dasharray="{{ (h.score / 100 * 326.7)|round(1) }} 326.7"/>
+            </svg>
+            <div class="val" style="color:{{ col }}">{{ h.score }}</div>
+          </div>
+          <div class="small text-muted">
+            Trend:
+            <i class="fa-solid fa-arrow-{{ 'trend-down text-danger' if h.trend=='down' else ('trend-up text-success' if h.trend=='up' else 'right-long') }}"></i>
+            {{ h.trend }}
+            <div class="mt-1">NPS: <strong>{{ h.nps }}</strong></div>
+            <div>Exec meetings (90d): <strong>{{ h.exec_meetings }}</strong></div>
+          </div>
+        </div>
+        {% for label, v in [("Product Usage", h.product_usage), ("Adoption", h.adoption), ("Training", h.training_completion)] %}
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <div style="width:100px" class="small text-muted">{{ label }}</div>
+          <div class="progress flex-grow-1" style="height:7px">
+            <div class="progress-bar {{ 'bg-success' if v >= 70 else ('bg-warning' if v >= 40 else 'bg-danger') }}" style="width:{{ v }}%"></div>
+          </div>
+          <div class="small fw-semibold" style="width:36px">{{ v }}%</div>
+        </div>
+        {% endfor %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Usage chart -->
+  <div class="col-lg-4">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-chart-area me-2 text-primary"></i>Product Usage (weekly active users)</h6></div>
+      <div class="card-body" style="min-height:230px">
+        {% if usage %}<canvas id="usageChart" style="max-height:220px"></canvas>
+        {% else %}<div class="text-muted small py-5 text-center">No usage telemetry for this account.</div>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Suggested actions -->
+  <div class="col-lg-4">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-wand-magic-sparkles me-2 text-ai"></i>AI Suggested Actions</h6></div>
+      <div class="card-body pt-2">
+        {% for s in suggested %}
+        <div class="d-flex gap-2 py-2 border-bottom">
+          <i class="fa-solid fa-circle-check text-success mt-1"></i>
+          <div class="small">{{ s }}</div>
+        </div>
+        {% endfor %}
+        <div class="d-flex flex-wrap gap-1 mt-3">
+          {{ ai_button("Predict churn", "Predict churn for this account", a.id, "btn-light") }}
+          {{ ai_button("Write email", "Write a follow-up email", a.id, "btn-light") }}
+          {{ ai_button("Generate QBR", "Prepare a QBR", a.id, "btn-light") }}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <!-- Contacts -->
+  <div class="col-lg-4">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-address-book me-2 text-secondary"></i>Contacts &amp; Executive Relationships</h6></div>
+      <div class="card-body pt-2">
+        {% for c in a.contacts[:8] %}
+        <div class="d-flex align-items-center gap-2 py-2 border-bottom">
+          {{ avatar(c.name, '#94a3b8', 30) }}
+          <div class="flex-grow-1">
+            <div class="small fw-semibold">{{ c.name }}
+              {% if c.is_executive_sponsor %}<i class="fa-solid fa-star text-warning" title="Executive sponsor"></i>{% endif %}</div>
+            <div class="text-muted" style="font-size:11.5px">{{ c.title }} · {{ c.email }}</div>
+          </div>
+        </div>
+        {% else %}<div class="text-muted small py-3">No contacts on file.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Open opps -->
+  <div class="col-lg-4">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-bullseye me-2 text-primary"></i>Open Opportunities</h6></div>
+      <div class="card-body pt-2">
+        {% for o in open_opps %}
+        <div class="py-2 border-bottom">
+          <div class="d-flex justify-content-between">
+            <div class="small fw-semibold">{{ o.name|truncate(40) }}</div>
+            <div class="small fw-semibold">{{ o.amount|money }}</div>
+          </div>
+          <div class="d-flex justify-content-between mt-1">
+            <div>{{ stage_badge(o.stage) }} <span class="badge text-bg-light">{{ o.opp_type }}</span></div>
+            <span class="ai-score {{ 'hi' if o.ai_score >= 70 else ('mid' if o.ai_score >= 40 else 'lo') }}">AI {{ o.ai_score }}</span>
+          </div>
+        </div>
+        {% else %}<div class="text-muted small py-3">No open opportunities.</div>
+        {% endfor %}
+        {% if expansion %}
+        <div class="small mt-2 text-success"><i class="fa-solid fa-arrow-trend-up me-1"></i>{{ expansion|length }} expansion play(s) in flight</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Contracts & renewals -->
+  <div class="col-lg-4">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-file-contract me-2 text-info"></i>Contracts &amp; Renewals</h6></div>
+      <div class="card-body pt-2">
+        {% for c in a.contracts %}
+        <div class="py-2 border-bottom">
+          <div class="d-flex justify-content-between">
+            <div class="small fw-semibold">{{ c.number }}</div>
+            <div class="small fw-semibold">{{ c.value|money }}</div>
+          </div>
+          <div class="text-muted" style="font-size:11.5px">{{ c.start_date.strftime('%b %Y') }} – {{ c.end_date.strftime('%b %Y') }} · {{ c.term_months }} mo
+            <span class="badge rounded-pill {{ 'text-bg-success' if c.payment_status=='Current' else ('text-bg-warning' if c.payment_status=='Late' else 'text-bg-danger') }} ms-1">{{ c.payment_status }}</span>
+          </div>
+        </div>
+        {% endfor %}
+        {% for r in renewals %}
+        <div class="py-2 border-bottom">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="small"><i class="fa-solid fa-rotate text-info me-1"></i>Renewal {{ r.renewal_date.strftime('%b %d, %Y') }}</div>
+            <span class="ai-score {{ 'hi' if r.likelihood >= 75 else ('mid' if r.likelihood >= 55 else 'lo') }}">{{ r.likelihood }}%</span>
+          </div>
+          <div class="text-muted" style="font-size:11.5px">{{ r.amount|money }} · {{ r.status }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Meeting timeline -->
+  <div class="col-lg-4">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-calendar-days me-2 text-primary"></i>Meeting Timeline</h6></div>
+      <div class="card-body">
+        <div class="timeline">
+          {% for m in meetings %}
+          <div class="timeline-item">
+            <div class="small fw-semibold">{{ m.title }} {% if m.is_executive %}<span class="badge text-bg-dark">Exec</span>{% endif %}</div>
+            <div class="text-muted" style="font-size:11.5px">{{ m.start_time.strftime('%b %d, %Y · %I:%M %p') }} · {{ m.location }}</div>
+          </div>
+          {% else %}<div class="text-muted small">No meetings logged.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Activities -->
+  <div class="col-lg-4">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-bolt me-2 text-warning"></i>Recent Activities</h6></div>
+      <div class="card-body">
+        <div class="timeline">
+          {% for act in activities %}
+          <div class="timeline-item">
+            <div class="small fw-semibold">{{ act.subject }} <span class="badge text-bg-light">{{ act.activity_type }}</span></div>
+            <div class="text-muted" style="font-size:11.5px">{{ act.user.name if act.user }} · {{ act.activity_date.strftime('%b %d, %Y') }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Emails + notes -->
+  <div class="col-lg-4">
+    <div class="card section-card mb-3">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-regular fa-envelope me-2 text-secondary"></i>Recent Emails</h6></div>
+      <div class="card-body pt-2">
+        {% for e in emails %}
+        <div class="py-2 border-bottom">
+          <div class="small fw-semibold">{{ e.subject|truncate(46) }}</div>
+          <div class="text-muted" style="font-size:11.5px">{{ e.sender }} → {{ e.recipient|truncate(28) }} · {{ e.sent_at.strftime('%b %d') }}</div>
+        </div>
+        {% else %}<div class="text-muted small py-2">No emails synced.</div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="card section-card">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-note-sticky me-2 text-warning"></i>Notes</h6></div>
+      <div class="card-body pt-2">
+        {% for n in notes %}
+        <div class="py-2 border-bottom small">{{ n.body }}
+          <div class="text-muted" style="font-size:11px">{{ n.author.name if n.author }} · {{ n.created_at.strftime('%b %d, %Y') }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if usage %}
+<script>lineChart('usageChart', '/api/charts/usage/{{ a.id }}', 'Active users', true, false);</script>
+{% endif %}
+{% endblock %}

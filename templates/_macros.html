@@ -1,0 +1,50 @@
+{% macro kpi(label, value, icon, color="primary", sub=None, delta=None) %}
+<div class="col">
+  <div class="card kpi-card h-100 border-0 shadow-sm">
+    <div class="card-body d-flex align-items-center gap-3">
+      <div class="kpi-icon bg-{{ color }}-subtle text-{{ color }}"><i class="fa-solid {{ icon }}"></i></div>
+      <div class="flex-grow-1">
+        <div class="kpi-label">{{ label }}</div>
+        <div class="kpi-value">{{ value }}</div>
+        {% if sub %}<div class="kpi-sub">{{ sub }}</div>{% endif %}
+      </div>
+      {% if delta is not none %}
+        <span class="badge rounded-pill {{ 'text-bg-success' if delta >= 0 else 'text-bg-danger' }}">
+          <i class="fa-solid fa-arrow-{{ 'up' if delta >= 0 else 'down' }} me-1"></i>{{ delta|abs }}%
+        </span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{% macro health_badge(status) %}
+{% set map = {"Green": "success", "Yellow": "warning", "Red": "danger"} %}
+<span class="badge rounded-pill text-bg-{{ map.get(status, 'secondary') }}">
+  <i class="fa-solid fa-circle fa-2xs me-1"></i>{{ status }}</span>
+{% endmacro %}
+
+{% macro stage_badge(stage) %}
+{% set map = {"Lead": "secondary", "Qualified": "info", "Discovery": "primary",
+              "Proposal": "warning", "Negotiation": "dark", "Closed Won": "success", "Closed Lost": "danger"} %}
+<span class="badge rounded-pill text-bg-{{ map.get(stage, 'secondary') }}">{{ stage }}</span>
+{% endmacro %}
+
+{% macro avatar(name, color="#6366f1", size=34) %}
+{% set parts = name.split() %}
+{% set init = (parts[0][0] ~ (parts[-1][0] if parts|length > 1 else ''))|upper %}
+<span class="avatar" style="background:{{ color }};width:{{ size }}px;height:{{ size }}px;font-size:{{ (size*0.38)|int }}px">{{ init }}</span>
+{% endmacro %}
+
+{% macro ai_button(label="Ask AI", prompt="", account_id="", cls="btn-ai") %}
+<button class="btn {{ cls }} btn-sm" onclick="openAI('{{ prompt|e }}', '{{ account_id }}')">
+  <i class="fa-solid fa-wand-magic-sparkles me-1"></i>{{ label }}
+</button>
+{% endmacro %}
+
+{% macro card_header(title, icon=None) %}
+<div class="card-header bg-white border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
+  <h6 class="fw-semibold mb-0">{% if icon %}<i class="fa-solid {{ icon }} me-2 text-muted"></i>{% endif %}{{ title }}</h6>
+  {{ caller() if caller }}
+</div>
+{% endmacro %}

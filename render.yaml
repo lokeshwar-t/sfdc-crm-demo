@@ -1,0 +1,17 @@
+# Render.com blueprint — deploy with one click via "New + → Blueprint"
+# pointed at this repo. Free tier; SQLite lives on the instance's ephemeral
+# disk and re-seeds automatically if the instance is recycled.
+services:
+  - type: web
+    name: cloudvision-crm
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --preload --workers 1 --threads 4 --bind 0.0.0.0:$PORT
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true          # Render generates a strong random value
+      - key: AGENT_API_TOKEN
+        generateValue: true          # rotate the agent API token off the demo default
+      - key: PYTHON_VERSION
+        value: "3.12.6"

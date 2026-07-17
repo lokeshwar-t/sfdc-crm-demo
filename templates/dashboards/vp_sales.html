@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% from "_macros.html" import kpi, stage_badge, avatar, ai_button %}
+{% block title %}VP Sales Dashboard{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="page-title mb-0">Sales Leadership</h1>
+    <div class="text-muted small">Pipeline, forecast and team performance</div>
+  </div>
+  {{ ai_button("Inspect pipeline", "Run a pipeline inspection") }}
+</div>
+
+<div class="row row-cols-2 row-cols-md-3 row-cols-xxl-6 g-3 mb-4">
+  {{ kpi("Open Pipeline", k.pipeline|money, "fa-bullseye", "primary") }}
+  {{ kpi("Forecast", k.forecast|money, "fa-wand-magic-sparkles", "info") }}
+  {{ kpi("Bookings (QTD)", k.bookings|money, "fa-file-signature", "success", delta=12) }}
+  {{ kpi("Win Rate", "%.0f%%"|format(win_rate), "fa-trophy", "warning") }}
+  {{ kpi("Avg Deal Size", avg_deal|money, "fa-sack-dollar", "primary") }}
+  {{ kpi("Quota Attainment", "71%", "fa-gauge-high", "danger", sub="team blended") }}
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-6">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0">Stage Conversion Funnel</h6></div>
+      <div class="card-body" style="height:270px"><canvas id="funnelChart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0">Quota Attainment by Rep</h6></div>
+      <div class="card-body" style="height:270px"><canvas id="quotaChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-5">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-ranking-star me-2 text-warning"></i>Leaderboard</h6></div>
+      <div class="card-body p-0">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th class="ps-3">Rep</th><th>Closed Won</th><th>Pipeline</th><th>Attainment</th></tr></thead>
+          <tbody>
+          {% for row in leaderboard %}
+          <tr>
+            <td class="ps-3"><div class="d-flex align-items-center gap-2">{{ avatar(row.rep.name, row.rep.avatar_color, 28) }}
+              <span class="fw-semibold small">{{ row.rep.name }}</span></div></td>
+            <td>{{ row.won|money }}</td>
+            <td class="text-muted">{{ row.pipe|money }}</td>
+            <td style="min-width:110px">
+              <div class="d-flex align-items-center gap-2">
+                <div class="progress flex-grow-1" style="height:6px">
+                  <div class="progress-bar {{ 'bg-success' if row.attain >= 100 else 'bg-primary' }}" style="width:{{ [row.attain, 100]|min }}%"></div>
+                </div><span class="small text-muted">{{ "%.0f"|format(row.attain) }}%</span>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="card section-card h-100">
+          <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-fire text-success me-2"></i>AI: Likely to Close</h6></div>
+          <div class="card-body pt-2">
+            {% for o in likely %}
+            <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+              <div>
+                <a class="entity-link small" href="{{ url_for('mod.account_360', account_id=o.account_id) }}">{{ o.name|truncate(34) }}</a>
+                <div class="deal-meta">{{ o.stage }} · {{ o.expected_close.strftime('%b %d') if o.expected_close }}</div>
+              </div>
+              <div class="text-end">
+                <div class="fw-semibold small">{{ o.amount|money }}</div>
+                <span class="ai-score hi">AI {{ o.ai_score }}</span>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card section-card h-100">
+          <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-triangle-exclamation text-danger me-2"></i>AI: Deals at Risk</h6></div>
+          <div class="card-body pt-2">
+            {% for o in at_risk %}
+            <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+              <div>
+                <a class="entity-link small" href="{{ url_for('mod.account_360', account_id=o.account_id) }}">{{ o.name|truncate(34) }}</a>
+                <div class="deal-meta">{{ o.next_step or 'No next step' }}</div>
+              </div>
+              <div class="text-end">
+                <div class="fw-semibold small">{{ o.amount|money }}</div>
+                <span class="ai-score lo">AI {{ o.ai_score }}</span>
+              </div>
+            </div>
+            {% endfor %}
+            <div class="small text-muted mt-2"><i class="fa-solid fa-wand-magic-sparkles me-1 text-ai"></i>AI flags missing follow-ups &amp; accounts needing executive engagement.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card section-card">
+  <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0">Recent Sales Activity</h6></div>
+  <div class="card-body">
+    <div class="timeline">
+      {% for act in recent_activity %}
+      <div class="timeline-item">
+        <div class="small"><strong>{{ act.user.name if act.user }}</strong> — {{ act.subject }}
+          <span class="text-muted">· {{ act.account.name if act.account }}</span></div>
+        <div class="text-muted" style="font-size:11.5px">{{ act.activity_type }} · {{ act.activity_date.strftime('%b %d, %I:%M %p') }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+funnelChart('funnelChart', '/api/charts/pipeline-funnel');
+barChart('quotaChart', '/api/charts/quota-attainment', 'Attainment %', false, false);
+</script>
+{% endblock %}

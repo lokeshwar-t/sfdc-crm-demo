@@ -1,0 +1,1080 @@
+{
+  "info": {
+    "_postman_id": "cv-agent-api-0001-4a7b-9c2d-refold00demo",
+    "name": "CloudVision CRM \u2014 Agent & App APIs",
+    "description": "Validation collection for the CloudVision CRM demo.\n\nTwo auth models:\n\u2022 **Agent API (token)** \u2014 Bearer {{agent_token}}, what Refold calls.\n\u2022 **Session API (cookie)** \u2014 run 'login' first; Postman reuses the session cookie automatically.\n\nTip: use the Collection Runner to execute everything in order. The Agent folder self-populates {{meeting_id}}/{{account_id}}/{{user_id}} from the live meetings list.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{agent_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5050"
+    },
+    {
+      "key": "agent_token",
+      "value": "refold-demo-agent-token"
+    },
+    {
+      "key": "login_email",
+      "value": "ceo@cloudvision.com"
+    },
+    {
+      "key": "login_password",
+      "value": "demo123"
+    },
+    {
+      "key": "meeting_id",
+      "value": "6"
+    },
+    {
+      "key": "account_id",
+      "value": "84"
+    },
+    {
+      "key": "user_id",
+      "value": "33"
+    },
+    {
+      "key": "run_key",
+      "value": "postman-test:6:0"
+    }
+  ],
+  "item": [
+    {
+      "name": "Agent API (token)",
+      "item": [
+        {
+          "name": "00 \u00b7 ping (no token \u2192 401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/agent/ping",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "agent",
+                "ping"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01 \u00b7 ping",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/agent/ping",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "agent",
+                "ping"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "var d = pm.response.json();",
+                  "pm.test('ok', () => pm.expect(d.ok).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02 \u00b7 meetings-upcoming",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/agent/meetings-upcoming?hours=24",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "agent",
+                "meetings-upcoming"
+              ],
+              "query": [
+                {
+                  "key": "hours",
+                  "value": "24"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "var d = pm.response.json();",
+                  "pm.test('has count', () => pm.expect(d.count).to.be.a('number'));",
+                  "if (d.meetings && d.meetings.length) { pm.collectionVariables.set('meeting_id', d.meetings[0].id); pm.collectionVariables.set('account_id', d.meetings[0].account_id); pm.collectionVariables.set('user_id', d.meetings[0].organizer_id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03 \u00b7 meeting-context/{{meeting_id}}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/agent/meeting-context/{{meeting_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "agent",
+                "meeting-context",
+                "{{meeting_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "var d = pm.response.json();",
+                  "pm.test('has meeting', () => pm.expect(d.meeting).to.be.an('object'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04 \u00b7 POST notes",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/agent/notes",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "agent",
+                "notes"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account_id\": \"{{account_id}}\",\n  \"body\": \"MEETING BRIEF (Postman test)\\nSITUATION: validated via Postman.\\nASK: confirm exec sponsor.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.response.to.have.status(201); });",
+                  "var d = pm.response.json();",
+                  "pm.test('is note', () => pm.expect(d.type).to.eql('note'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05 \u00b7 POST notifications",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/agent/notifications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "agent",
+                "notifications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{user_id}}\",\n  \"category\": \"Meeting\",\n  \"message\": \"Brief ready (Postman test)\",\n  \"link\": \"/accounts/{{account_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.response.to.have.status(201); });",
+                  "var d = pm.response.json();",
+                  "pm.test('is notification', () => pm.expect(d.type).to.eql('notification'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06 \u00b7 POST tasks",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/agent/tasks",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "agent",
+                "tasks"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Post-meeting follow-up (Postman test)\",\n  \"account_id\": \"{{account_id}}\",\n  \"owner_id\": \"{{user_id}}\",\n  \"due_date\": \"2026-07-18\",\n  \"priority\": \"Medium\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.response.to.have.status(201); });",
+                  "var d = pm.response.json();",
+                  "pm.test('is task', () => pm.expect(d.type).to.eql('task'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07 \u00b7 POST drafts",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/agent/drafts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "agent",
+                "drafts"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agent_name\": \"renewal\",\n  \"kind\": \"email\",\n  \"account_id\": \"{{account_id}}\",\n  \"title\": \"Renewal check-in (Postman test)\",\n  \"payload\": {\n    \"subject\": \"Your renewal\",\n    \"body\": \"Hi there ...\",\n    \"to\": \"champion@example.com\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.response.to.have.status(201); });",
+                  "var d = pm.response.json();",
+                  "pm.test('is draft', () => pm.expect(d.type).to.eql('draft'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08 \u00b7 GET drafts?status=draft",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/agent/drafts?status=draft",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "agent",
+                "drafts"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "draft"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "var d = pm.response.json();",
+                  "pm.test('has drafts array', () => pm.expect(d.drafts).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "09 \u00b7 POST runs (unique key \u2192 201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/agent/runs",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "agent",
+                "runs"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"{{run_key}}\",\n  \"agent_name\": \"meeting-prep\",\n  \"entity_type\": \"meeting\",\n  \"entity_id\": \"{{meeting_id}}\",\n  \"window_key\": \"2026-07-18\",\n  \"status\": \"auto\",\n  \"trigger\": \"postman\",\n  \"actions\": [\n    \"note\",\n    \"notification\",\n    \"task\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('run_key', 'postman-test:' + pm.collectionVariables.get('meeting_id') + ':' + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', function () { pm.response.to.have.status(201); });",
+                  "var d = pm.response.json();",
+                  "pm.test('logged', () => pm.expect(d.key).to.eql(pm.collectionVariables.get('run_key')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10 \u00b7 GET runs?key={{run_key}} (exists)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/agent/runs?key={{run_key}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "agent",
+                "runs"
+              ],
+              "query": [
+                {
+                  "key": "key",
+                  "value": "{{run_key}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "var d = pm.response.json();",
+                  "pm.test('exists true', () => pm.expect(d.exists).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "11 \u00b7 POST runs (duplicate key \u2192 409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/agent/runs",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "agent",
+                "runs"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"{{run_key}}\",\n  \"agent_name\": \"meeting-prep\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12 \u00b7 GET runs?agent=meeting-prep",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/agent/runs?agent=meeting-prep",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "agent",
+                "runs"
+              ],
+              "query": [
+                {
+                  "key": "agent",
+                  "value": "meeting-prep"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "var d = pm.response.json();",
+                  "pm.test('runs array', () => pm.expect(d.runs).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Session API (cookie)",
+      "item": [
+        {
+          "name": "00 \u00b7 login (sets session cookie)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "email",
+                  "value": "{{login_email}}"
+                },
+                {
+                  "key": "password",
+                  "value": "{{login_password}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('login ok (200/302)', function () { pm.expect([200,302,304]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01 \u00b7 POST ai/chat",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ai/chat",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "ai",
+                "chat"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"summarize the business\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "var d = pm.response.json();",
+                  "pm.test('has response', () => pm.expect(d.response).to.be.a('string'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02 \u00b7 POST ai/chat (account-scoped)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/ai/chat",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "ai",
+                "chat"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"prepare my QBR\",\n  \"account_id\": \"{{account_id}}\",\n  \"context\": \"account\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03 \u00b7 POST scenario",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/scenario",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "scenario"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"win_adj\": 10,\n  \"renew_adj\": -5,\n  \"deal_adj\": 15\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });",
+                  "var d = pm.response.json();",
+                  "pm.test('has forecast', () => pm.expect(d.forecast).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "chart \u00b7 arr-growth",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/charts/arr-growth",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "charts",
+                "arr-growth"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "chart \u00b7 pipeline-funnel",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/charts/pipeline-funnel",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "charts",
+                "pipeline-funnel"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "chart \u00b7 renewal-calendar",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/charts/renewal-calendar",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "charts",
+                "renewal-calendar"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "chart \u00b7 regional-revenue",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/charts/regional-revenue",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "charts",
+                "regional-revenue"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "chart \u00b7 industry-revenue",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/charts/industry-revenue",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "charts",
+                "industry-revenue"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "chart \u00b7 health-distribution",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/charts/health-distribution",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "charts",
+                "health-distribution"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "chart \u00b7 segmentation",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/charts/segmentation",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "charts",
+                "segmentation"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "chart \u00b7 top-products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/charts/top-products",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "charts",
+                "top-products"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "chart \u00b7 quota-attainment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/charts/quota-attainment",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "charts",
+                "quota-attainment"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "chart \u00b7 revenue-trend",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/charts/revenue-trend",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "charts",
+                "revenue-trend"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "chart \u00b7 usage/{{account_id}}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/charts/usage/{{account_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "charts",
+                "usage",
+                "{{account_id}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "noauth"
+      }
+    }
+  ]
+}

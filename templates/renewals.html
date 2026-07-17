@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% from "_macros.html" import ai_button %}
+{% block title %}Renewals{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="page-title mb-0">Renewals</h1>
+    <div class="text-muted small">Renewal calendar and pipeline</div>
+  </div>
+  {{ ai_button("Summarize renewals", "Summarize upcoming renewals") }}
+</div>
+
+<div class="calendar-strip mb-4">
+  {% for m in months %}
+  <div class="cal-month">
+    <div class="small text-muted">{{ m.label }}</div>
+    <div class="fw-bold fs-5">{{ m.amount|money }}</div>
+    <div class="text-muted" style="font-size:11.5px">{{ m.count }} renewal{{ 's' if m.count != 1 }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card section-card">
+  <div class="card-body">
+    <table class="table table-hover align-middle datatable">
+      <thead><tr><th>Account</th><th>Renewal Date</th><th>Amount</th><th>Status</th><th>Likelihood</th><th>CSM</th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{% if r.account %}<a class="entity-link" href="{{ url_for('mod.account_360', account_id=r.account_id) }}">{{ r.account.name }}</a>{% endif %}</td>
+        <td class="text-muted" data-order="{{ r.renewal_date.isoformat() if r.renewal_date }}">{{ r.renewal_date.strftime('%b %d, %Y') if r.renewal_date }}</td>
+        <td data-order="{{ r.amount }}">{{ r.amount|money }}</td>
+        <td><span class="badge rounded-pill {{ {'Upcoming':'text-bg-info','In Progress':'text-bg-primary','Renewed':'text-bg-success','Churned':'text-bg-danger','At Risk':'text-bg-warning'}.get(r.status,'text-bg-light') }}">{{ r.status }}</span></td>
+        <td data-order="{{ r.likelihood }}"><span class="ai-score {{ 'hi' if r.likelihood >= 75 else ('mid' if r.likelihood >= 55 else 'lo') }}">{{ r.likelihood }}%</span></td>
+        <td class="text-muted">{{ r.owner.name if r.owner }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

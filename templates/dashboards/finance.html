@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% from "_macros.html" import kpi, ai_button %}
+{% block title %}Finance Dashboard{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="page-title mb-0">Finance &amp; Revenue</h1>
+    <div class="text-muted small">ARR, billings, collections and forecast</div>
+  </div>
+  {{ ai_button("Forecast cash flow", "Forecast cash flow") }}
+</div>
+
+<div class="row row-cols-2 row-cols-md-3 row-cols-xxl-6 g-3 mb-4">
+  {{ kpi("ARR", k.arr|money, "fa-chart-line", "primary", delta=24) }}
+  {{ kpi("MRR", k.mrr|money, "fa-coins", "info") }}
+  {{ kpi("Bookings (QTD)", k.bookings|money, "fa-file-signature", "success") }}
+  {{ kpi("Billings (annualized)", billings|money, "fa-file-invoice-dollar", "warning") }}
+  {{ kpi("Collections", "%.0f%%"|format(collections_pct), "fa-hand-holding-dollar", "success", sub="on-time") }}
+  {{ kpi("Active Contracts", n_contracts, "fa-file-contract", "secondary") }}
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-7">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0">Bookings vs Billings</h6></div>
+      <div class="card-body" style="height:280px"><canvas id="revChart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0">Renewal Revenue (next 6 mo)</h6></div>
+      <div class="card-body" style="height:280px"><canvas id="renewalChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
+        <h6 class="fw-semibold mb-0"><i class="fa-solid fa-triangle-exclamation text-danger me-2"></i>Delayed Payments</h6>
+        {{ ai_button("Analyze", "Which payments are delayed?") }}
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th class="ps-3">Contract</th><th>Account</th><th>Value</th><th>Status</th></tr></thead>
+          <tbody>
+          {% for c in (late + delinquent)[:10] %}
+          <tr>
+            <td class="ps-3 small fw-semibold">{{ c.number }}</td>
+            <td class="small"><a class="entity-link" href="{{ url_for('mod.account_360', account_id=c.account_id) }}">{{ c.account.name if c.account }}</a></td>
+            <td class="small">{{ c.value|money }}</td>
+            <td><span class="badge rounded-pill {{ 'text-bg-warning' if c.payment_status=='Late' else 'text-bg-danger' }}">{{ c.payment_status }}</span></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
+        <h6 class="fw-semibold mb-0"><i class="fa-solid fa-rotate text-info me-2"></i>Upcoming Renewals</h6>
+        {{ ai_button("Summarize", "Summarize upcoming renewals") }}
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th class="ps-3">Account</th><th>Date</th><th>Amount</th><th>Likelihood</th></tr></thead>
+          <tbody>
+          {% for r in upcoming_renewals %}
+          <tr>
+            <td class="ps-3 small"><a class="entity-link" href="{{ url_for('mod.account_360', account_id=r.account_id) }}">{{ r.account.name if r.account }}</a></td>
+            <td class="small text-muted">{{ r.renewal_date.strftime('%b %d, %Y') }}</td>
+            <td class="small fw-semibold">{{ r.amount|money }}</td>
+            <td><span class="ai-score {{ 'hi' if r.likelihood >= 75 else ('mid' if r.likelihood >= 55 else 'lo') }}">{{ r.likelihood }}%</span></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// dual-series revenue chart
+fetch('/api/charts/revenue-trend').then(r => r.json()).then(d => {
+  new Chart(document.getElementById('revChart'), {
+    type: 'bar',
+    data: {labels: d.labels, datasets: [
+      {label: 'Bookings', data: d.bookings, backgroundColor: '#6366f1cc', borderRadius: 6, maxBarThickness: 26},
+      {label: 'Billings', data: d.billings, backgroundColor: '#c7d2fe', borderRadius: 6, maxBarThickness: 26},
+    ]},
+    options: {maintainAspectRatio: false,
+      scales: {x: {grid: {display:false}}, y: {grid: {color:'#eef0f5'}, ticks: {callback: v => '$' + v + 'M'}}}}
+  });
+});
+barChart('renewalChart', '/api/charts/renewal-calendar', 'Renewals');
+</script>
+{% endblock %}

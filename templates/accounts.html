@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "_macros.html" import health_badge, ai_button %}
+{% block title %}Accounts{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div>
+    <h1 class="page-title mb-0">Accounts</h1>
+    <div class="text-muted small">{{ rows|length }} accounts</div>
+  </div>
+  <form class="d-flex gap-2" method="get">
+    <select class="form-select form-select-sm" name="type" onchange="this.form.submit()">
+      <option value="">All types</option>
+      <option value="customer" {{ 'selected' if request.args.get('type')=='customer' }}>Customers</option>
+      <option value="prospect" {{ 'selected' if request.args.get('type')=='prospect' }}>Prospects</option>
+    </select>
+    <select class="form-select form-select-sm" name="segment" onchange="this.form.submit()">
+      <option value="">All segments</option>
+      {% for s in ["Enterprise","Mid-Market","SMB"] %}
+      <option {{ 'selected' if request.args.get('segment')==s }}>{{ s }}</option>
+      {% endfor %}
+    </select>
+    <select class="form-select form-select-sm" name="region" onchange="this.form.submit()">
+      <option value="">All regions</option>
+      {% for r in ["North America","EMEA","APAC","LATAM"] %}
+      <option {{ 'selected' if request.args.get('region')==r }}>{{ r }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+<div class="card section-card">
+  <div class="card-body">
+    <table class="table table-hover align-middle datatable">
+      <thead><tr><th>Account</th><th>Industry</th><th>Region</th><th>Segment</th><th>ARR</th><th>Health</th><th>Type</th><th></th></tr></thead>
+      <tbody>
+      {% for a in rows %}
+      {% set h = healths.get(a.id) %}
+      <tr>
+        <td><a class="entity-link" href="{{ url_for('mod.account_360', account_id=a.id) }}">{{ a.name }}</a></td>
+        <td>{{ a.industry }}</td>
+        <td>{{ a.region }}</td>
+        <td>{{ a.segment }}</td>
+        <td data-order="{{ a.arr }}">{{ a.arr|money }}</td>
+        <td data-order="{{ h.score if h else 0 }}">{% if h %}{{ health_badge(h.status) }}{% else %}—{% endif %}</td>
+        <td><span class="badge rounded-pill {{ 'text-bg-primary' if a.is_customer else 'text-bg-light' }}">{{ 'Customer' if a.is_customer else 'Prospect' }}</span></td>
+        <td class="text-nowrap">
+          <button class="edit-btn" title="Edit account" onclick="openEdit('editAccountModal', this)"
+            data-record='{{ {"id": a.id, "name": a.name, "industry": a.industry, "region": a.region, "segment": a.segment, "website": a.website or "", "employees": a.employees or "", "arr": a.arr or 0, "type": "customer" if a.is_customer else "prospect"}|tojson }}'>
+            <i class="fa-solid fa-pen fa-xs"></i></button>
+          {{ ai_button("", "Summarize this account", a.id, "btn-light") }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

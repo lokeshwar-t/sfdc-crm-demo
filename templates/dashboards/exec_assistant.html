@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% from "_macros.html" import kpi, health_badge, ai_button %}
+{% block title %}Executive Assistant{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="page-title mb-0">Executive Desk</h1>
+    <div class="text-muted small">Meetings, key customers and briefings</div>
+  </div>
+  <div class="d-flex gap-2">
+    {{ ai_button("Executive briefing", "Create an executive briefing") }}
+    {{ ai_button("Weekly summary", "Generate a weekly summary") }}
+  </div>
+</div>
+
+<div class="row row-cols-2 row-cols-md-4 g-3 mb-4">
+  {{ kpi("Executive Meetings", exec_meetings|length, "fa-calendar-days", "primary", sub="upcoming") }}
+  {{ kpi("Key Customers", top_customers|length, "fa-star", "warning") }}
+  {{ kpi("Renewals Ahead", upcoming_renewals|length, "fa-rotate", "info") }}
+  {{ kpi("Escalations", escalations|length, "fa-triangle-exclamation", "danger") }}
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-6">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-calendar-days me-2 text-primary"></i>Executive Meetings</h6></div>
+      <div class="card-body pt-2">
+        {% for m in exec_meetings %}
+        <div class="d-flex align-items-center gap-3 py-2 border-bottom">
+          <div class="text-center" style="min-width:48px">
+            <div class="fw-bold">{{ m.start_time.strftime('%d') }}</div>
+            <div class="text-muted" style="font-size:10.5px">{{ m.start_time.strftime('%b') }}</div>
+          </div>
+          <div class="flex-grow-1">
+            <div class="small fw-semibold">{{ m.title }}</div>
+            <div class="text-muted" style="font-size:11.5px">{{ m.start_time.strftime('%I:%M %p') }} · {{ m.duration_min }} min · {{ m.location }}</div>
+          </div>
+          {{ ai_button("Brief", "Create an executive briefing for the meeting: " ~ m.title, m.account_id or '', "btn-light") }}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-star me-2 text-warning"></i>Important Customers</h6></div>
+      <div class="card-body p-0">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th class="ps-3">Account</th><th>ARR</th><th>Segment</th><th>Region</th></tr></thead>
+          <tbody>
+          {% for a in top_customers %}
+          <tr>
+            <td class="ps-3 small"><a class="entity-link" href="{{ url_for('mod.account_360', account_id=a.id) }}">{{ a.name }}</a></td>
+            <td class="small fw-semibold">{{ a.arr|money }}</td>
+            <td class="small text-muted">{{ a.segment }}</td>
+            <td class="small text-muted">{{ a.region }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-rotate me-2 text-info"></i>Upcoming Renewals</h6></div>
+      <div class="card-body p-0">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th class="ps-3">Account</th><th>Date</th><th>Amount</th></tr></thead>
+          <tbody>
+          {% for r in upcoming_renewals %}
+          <tr>
+            <td class="ps-3 small"><a class="entity-link" href="{{ url_for('mod.account_360', account_id=r.account_id) }}">{{ r.account.name if r.account }}</a></td>
+            <td class="small text-muted">{{ r.renewal_date.strftime('%b %d, %Y') }}</td>
+            <td class="small fw-semibold">{{ r.amount|money }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-triangle-exclamation me-2 text-danger"></i>Recent Escalations</h6></div>
+      <div class="card-body p-0">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th class="ps-3">Account</th><th>ARR</th><th>Health</th></tr></thead>
+          <tbody>
+          {% for a, h in escalations %}
+          <tr>
+            <td class="ps-3 small"><a class="entity-link" href="{{ url_for('mod.account_360', account_id=a.id) }}">{{ a.name }}</a></td>
+            <td class="small">{{ a.arr|money }}</td>
+            <td>{{ health_badge(h.status) }} <span class="small text-muted">{{ h.score }}</span></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

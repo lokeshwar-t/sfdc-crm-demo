@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# App data — auto-created and seeded on first run
+crm_demo.db
+*.sqlite3
+
+# Local / OS / secrets
+.DS_Store
+*.log
+.env
+*.cookies
+
+# Stale bundled snapshot of the app
+sfdc_app.zip

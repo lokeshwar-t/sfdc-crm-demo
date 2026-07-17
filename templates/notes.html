@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Notes{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Notes</h1>
+<div class="row g-3">
+  {% for n in rows %}
+  <div class="col-md-6 col-xl-4">
+    <div class="card section-card h-100">
+      <div class="card-body">
+        <div class="small">{{ n.body }}</div>
+        <div class="text-muted mt-2" style="font-size:11.5px">
+          {% if n.account %}<a class="entity-link" href="{{ url_for('mod.account_360', account_id=n.account_id) }}">{{ n.account.name }}</a> · {% endif %}
+          {{ n.author.name if n.author }} · {{ n.created_at.strftime('%b %d, %Y') }}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

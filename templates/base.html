@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}CloudVision CRM{% endblock %} · CloudVision Analytics</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+  <link href="https://cdn.datatables.net/2.0.8/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+<div class="app-shell">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-mark"><i class="fa-solid fa-cloud"></i></div>
+      <span class="brand-text">CloudVision</span>
+    </div>
+    <div class="sidebar-section">Workspace</div>
+    <nav class="sidebar-nav">
+      <a href="{{ url_for('dash.home') }}" class="{{ 'active' if request.path == '/' }}"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span></a>
+      <a href="{{ url_for('dash.briefing') }}" class="{{ 'active' if request.path == '/briefing' }}"><i class="fa-solid fa-mug-hot"></i><span>Morning Briefing</span></a>
+      <a href="{{ url_for('mod.ai_chat') }}" class="{{ 'active' if request.path == '/ai-chat' }}"><i class="fa-solid fa-wand-magic-sparkles"></i><span>AI Assistant</span></a>
+    </nav>
+    <div class="sidebar-section">Sales</div>
+    <nav class="sidebar-nav">
+      <a href="{{ url_for('mod.leads') }}" class="{{ 'active' if request.path == '/leads' }}"><i class="fa-solid fa-filter"></i><span>Leads</span></a>
+      <a href="{{ url_for('mod.opportunities') }}" class="{{ 'active' if request.path == '/opportunities' }}"><i class="fa-solid fa-bullseye"></i><span>Opportunities</span></a>
+      <a href="{{ url_for('mod.accounts') }}" class="{{ 'active' if request.path.startswith('/accounts') }}"><i class="fa-solid fa-building"></i><span>Accounts</span></a>
+      <a href="{{ url_for('mod.contacts') }}" class="{{ 'active' if request.path == '/contacts' }}"><i class="fa-solid fa-address-book"></i><span>Contacts</span></a>
+      <a href="{{ url_for('mod.activities') }}" class="{{ 'active' if request.path == '/activities' }}"><i class="fa-solid fa-bolt"></i><span>Activities</span></a>
+      <a href="{{ url_for('mod.products') }}" class="{{ 'active' if request.path == '/products' }}"><i class="fa-solid fa-cubes"></i><span>Products</span></a>
+    </nav>
+    <div class="sidebar-section">Customer Success</div>
+    <nav class="sidebar-nav">
+      <a href="{{ url_for('mod.customer_success') }}" class="{{ 'active' if request.path == '/customer-success' }}"><i class="fa-solid fa-heart-pulse"></i><span>Customer Health</span></a>
+      <a href="{{ url_for('mod.contracts') }}" class="{{ 'active' if request.path == '/contracts' }}"><i class="fa-solid fa-file-contract"></i><span>Contracts</span></a>
+      <a href="{{ url_for('mod.renewals') }}" class="{{ 'active' if request.path == '/renewals' }}"><i class="fa-solid fa-rotate"></i><span>Renewals</span></a>
+    </nav>
+    <div class="sidebar-section">Productivity</div>
+    <nav class="sidebar-nav">
+      <a href="{{ url_for('mod.tasks') }}" class="{{ 'active' if request.path == '/tasks' }}"><i class="fa-solid fa-list-check"></i><span>Tasks</span></a>
+      <a href="{{ url_for('mod.meetings') }}" class="{{ 'active' if request.path == '/meetings' }}"><i class="fa-solid fa-calendar-days"></i><span>Meetings</span></a>
+      <a href="{{ url_for('mod.notes') }}" class="{{ 'active' if request.path == '/notes' }}"><i class="fa-solid fa-note-sticky"></i><span>Notes</span></a>
+    </nav>
+    <div class="sidebar-section">Insights</div>
+    <nav class="sidebar-nav">
+      <a href="{{ url_for('mod.reports') }}" class="{{ 'active' if request.path == '/reports' }}"><i class="fa-solid fa-chart-pie"></i><span>Reports</span></a>
+      <a href="{{ url_for('dash.scenarios') }}" class="{{ 'active' if request.path == '/scenarios' }}"><i class="fa-solid fa-sliders"></i><span>Scenarios</span></a>
+      <a href="{{ url_for('mod.users') }}" class="{{ 'active' if request.path == '/users' }}"><i class="fa-solid fa-users"></i><span>Team</span></a>
+    </nav>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-area">
+    <header class="topbar">
+      <button class="btn btn-link text-secondary d-lg-none px-2" onclick="document.getElementById('sidebar').classList.toggle('open')">
+        <i class="fa-solid fa-bars"></i>
+      </button>
+      <form class="global-search" action="{{ url_for('mod.search') }}" method="get">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" name="q" placeholder="Search accounts, contacts, deals, contracts…" value="{{ request.args.get('q','') }}">
+      </form>
+      <div class="ms-auto d-flex align-items-center gap-2">
+        <!-- Quick create -->
+        <div class="dropdown">
+          <button class="btn btn-primary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+            <i class="fa-solid fa-plus me-1"></i>New
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end shadow">
+            <li><button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#newLeadModal"><i class="fa-solid fa-filter me-2 text-muted"></i>Lead</button></li>
+            <li><button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#newOppModal"><i class="fa-solid fa-bullseye me-2 text-muted"></i>Opportunity</button></li>
+            <li><button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#newAccountModal"><i class="fa-solid fa-building me-2 text-muted"></i>Account</button></li>
+            <li><button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#newContactModal"><i class="fa-solid fa-address-book me-2 text-muted"></i>Contact</button></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#newTaskModal"><i class="fa-solid fa-list-check me-2 text-muted"></i>Task</button></li>
+            <li><button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#newMeetingModal"><i class="fa-solid fa-calendar-days me-2 text-muted"></i>Meeting</button></li>
+            <li><button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#newNoteModal"><i class="fa-solid fa-note-sticky me-2 text-muted"></i>Note</button></li>
+          </ul>
+        </div>
+        <button class="btn btn-ai btn-sm" onclick="openAI('', '')"><i class="fa-solid fa-wand-magic-sparkles me-1"></i>Ask AI</button>
+
+        <!-- Role switcher -->
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+            <i class="fa-solid fa-shuffle me-1"></i>
+            {% for r in switchable_roles %}{% if r.slug == current_user.active_role_slug %}{{ r.name }}{% endif %}{% endfor %}
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end shadow">
+            <li><h6 class="dropdown-header">Demo: switch persona</h6></li>
+            {% for r in switchable_roles %}
+            <li><a class="dropdown-item {{ 'active' if r.slug == current_user.active_role_slug }}"
+                   href="{{ url_for('auth.switch_role', slug=r.slug) }}">
+              <i class="fa-solid fa-user-tie me-2 text-muted"></i>{{ r.name }}</a></li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        <!-- Notifications -->
+        <div class="dropdown">
+          <button class="btn btn-light btn-sm position-relative rounded-circle icon-btn" data-bs-toggle="dropdown">
+            <i class="fa-regular fa-bell"></i>
+            {% if unread_count %}<span class="notif-dot">{{ unread_count }}</span>{% endif %}
+          </button>
+          <div class="dropdown-menu dropdown-menu-end shadow notif-menu p-0">
+            <div class="p-3 border-bottom fw-semibold">Notifications</div>
+            {% for n in nav_notifications %}
+            <a href="{{ n.link or '#' }}" class="dropdown-item notif-item {{ 'unread' if not n.is_read }}">
+              <span class="notif-cat cat-{{ n.category|lower }}"><i class="fa-solid fa-{{ {'Renewal':'rotate','Contract':'file-contract','Health':'heart-pulse','Deal':'bullseye','Task':'list-check','Meeting':'calendar-days','Activity':'bolt'}.get(n.category,'bell') }}"></i></span>
+              <span class="small">{{ n.message }}</span>
+            </a>
+            {% else %}
+            <div class="p-3 text-muted small">No notifications</div>
+            {% endfor %}
+            <a href="{{ url_for('mod.notifications') }}" class="dropdown-item text-center small text-primary py-2 border-top">View all</a>
+          </div>
+        </div>
+
+        <!-- Profile -->
+        <div class="dropdown">
+          <button class="btn p-0 border-0" data-bs-toggle="dropdown">
+            <span class="avatar" style="background:{{ current_user.avatar_color }};width:36px;height:36px;font-size:14px">{{ current_user.initials }}</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end shadow">
+            <li class="px-3 py-2">
+              <div class="fw-semibold">{{ current_user.name }}</div>
+              <div class="small text-muted">{{ current_user.title }}</div>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="{{ url_for('mod.notifications') }}"><i class="fa-regular fa-bell me-2"></i>Notifications</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('mod.users') }}"><i class="fa-solid fa-users me-2"></i>Team</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item text-danger" href="{{ url_for('auth.logout') }}"><i class="fa-solid fa-arrow-right-from-bracket me-2"></i>Sign out</a></li>
+          </ul>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      {% block breadcrumb %}{% endblock %}
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for cat, msg in messages %}
+        <div class="toast-flash alert alert-{{ cat }} alert-dismissible fade show shadow-sm" role="alert">
+          {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+<!-- AI Assistant offcanvas -->
+<div class="offcanvas offcanvas-end ai-panel" tabindex="-1" id="aiPanel">
+  <div class="offcanvas-header border-bottom">
+    <h6 class="offcanvas-title"><i class="fa-solid fa-wand-magic-sparkles me-2 text-ai"></i>CloudVision AI</h6>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body d-flex flex-column p-0">
+    <div id="aiMessages" class="ai-messages flex-grow-1">
+      <div class="ai-msg ai">Hi {{ current_user.name.split()[0] }} — I'm your AI copilot. Ask me about risk, forecasts, renewals, or any account.</div>
+    </div>
+    <div class="ai-suggest px-3 pb-2">
+      <button class="chip" onclick="askAI('Which customers are at risk?')">Customers at risk</button>
+      <button class="chip" onclick="askAI('What changed this week?')">What changed this week</button>
+      <button class="chip" onclick="askAI('Predict next quarter')">Predict next quarter</button>
+      <button class="chip" onclick="askAI('Generate board meeting summary')">Board summary</button>
+    </div>
+    <form class="ai-input border-top p-3 d-flex gap-2" onsubmit="return submitAI(event)">
+      <input type="hidden" id="aiAccountId" value="">
+      <input type="text" id="aiPrompt" class="form-control" placeholder="Ask anything…" autocomplete="off">
+      <button class="btn btn-ai" type="submit"><i class="fa-solid fa-paper-plane"></i></button>
+    </form>
+  </div>
+</div>
+
+{% include "_create_modals.html" %}
+{% include "_edit_modals.html" %}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/2.0.8/js/dataTables.bootstrap5.min.js"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

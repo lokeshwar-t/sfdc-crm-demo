@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% from "_macros.html" import stage_badge, ai_button %}
+{% block title %}Opportunities{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="page-title mb-0">Pipeline</h1>
+    <div class="text-muted small">Kanban board &amp; deal list</div>
+  </div>
+  <div class="d-flex gap-2">
+    <div class="btn-group btn-group-sm">
+      <a href="?view=kanban" class="btn {{ 'btn-primary' if view=='kanban' else 'btn-outline-secondary' }}"><i class="fa-solid fa-table-columns me-1"></i>Board</a>
+      <a href="?view=table" class="btn {{ 'btn-primary' if view=='table' else 'btn-outline-secondary' }}"><i class="fa-solid fa-table-list me-1"></i>Table</a>
+    </div>
+    {{ ai_button("Inspect pipeline", "Run a pipeline inspection") }}
+  </div>
+</div>
+
+{% if view == 'kanban' %}
+<div class="kanban">
+  {% set colors = {"Lead":"#64748b","Qualified":"#0ea5e9","Discovery":"#6366f1","Proposal":"#f59e0b","Negotiation":"#334155","Closed Won":"#16a34a"} %}
+  {% for stage, deals in by_stage.items() %}
+  <div class="kanban-col">
+    <div class="kanban-col-header" style="background:{{ colors[stage] }}">
+      <span>{{ stage }}</span>
+      <span class="small opacity-75 kanban-total">{{ stage_totals[stage]|money }}</span>
+    </div>
+    <div class="kanban-body" data-stage="{{ stage }}" ondragover="allowDrop(event)" ondragleave="leaveDrop(event)" ondrop="dropDeal(event)">
+      {% for o in deals %}
+      <div class="deal-card" draggable="true" data-id="{{ o.id }}" data-amount="{{ o.amount }}"
+           ondragstart="dragDeal(event)" ondragend="dragEndDeal()"
+           onclick="location.href='{{ url_for('mod.account_360', account_id=o.account_id) }}'">
+        <div class="d-flex justify-content-between align-items-start">
+          <div class="deal-name">{{ o.name|truncate(42) }}</div>
+          <button class="edit-btn" title="Edit deal" onclick="event.stopPropagation(); openEdit('editOppModal', this)"
+                  data-record='{{ {"id": o.id, "name": o.name, "stage": o.stage, "amount": o.amount, "opp_type": o.opp_type, "competitor": o.competitor or "", "next_step": o.next_step or "", "expected_close": o.expected_close.isoformat() if o.expected_close else "", "product_id": o.product_id or ""}|tojson }}'>
+            <i class="fa-solid fa-pen fa-xs"></i></button>
+        </div>
+        <div class="d-flex justify-content-between align-items-center mt-2">
+          <span class="deal-meta">{{ o.amount|money }} · {{ o.expected_close.strftime('%b %d') if o.expected_close }}</span>
+          <span class="ai-score {{ 'hi' if o.ai_score >= 70 else ('mid' if o.ai_score >= 40 else 'lo') }}">{{ o.ai_score }}</span>
+        </div>
+        <div class="deal-meta mt-1"><i class="fa-regular fa-user me-1"></i>{{ o.owner.name if o.owner }}
+          {% if o.competitor %} · <i class="fa-solid fa-chess-knight me-1"></i>{{ o.competitor }}{% endif %}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card section-card">
+  <div class="card-body">
+    <table class="table table-hover align-middle datatable">
+      <thead><tr><th>Deal</th><th>Account</th><th>Stage</th><th>Type</th><th>Amount</th><th>Prob.</th><th>Close</th><th>Owner</th><th>Next Step</th><th>AI</th><th></th></tr></thead>
+      <tbody>
+      {% for o in rows %}
+      <tr>
+        <td class="fw-semibold">{{ o.name|truncate(40) }}</td>
+        <td>{% if o.account %}<a class="entity-link" href="{{ url_for('mod.account_360', account_id=o.account_id) }}">{{ o.account.name }}</a>{% endif %}</td>
+        <td>{{ stage_badge(o.stage) }}</td>
+        <td class="text-muted">{{ o.opp_type }}</td>
+        <td data-order="{{ o.amount }}">{{ o.amount|money }}</td>
+        <td>{{ o.probability }}%</td>
+        <td class="text-muted">{{ o.expected_close.strftime('%b %d, %y') if o.expected_close }}</td>
+        <td class="text-muted">{{ o.owner.name if o.owner }}</td>
+        <td class="text-muted small">{{ o.next_step|truncate(26) if o.next_step }}</td>
+        <td data-order="{{ o.ai_score }}"><span class="ai-score {{ 'hi' if o.ai_score >= 70 else ('mid' if o.ai_score >= 40 else 'lo') }}">{{ o.ai_score }}</span></td>
+        <td><button class="edit-btn" title="Edit deal" onclick="openEdit('editOppModal', this)"
+             data-record='{{ {"id": o.id, "name": o.name, "stage": o.stage, "amount": o.amount, "opp_type": o.opp_type, "competitor": o.competitor or "", "next_step": o.next_step or "", "expected_close": o.expected_close.isoformat() if o.expected_close else "", "product_id": o.product_id or ""}|tojson }}'>
+          <i class="fa-solid fa-pen fa-xs"></i></button></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

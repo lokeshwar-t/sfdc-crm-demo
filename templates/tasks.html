@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Tasks{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Tasks</h1>
+<div class="card section-card">
+  <div class="card-body">
+    <table class="table table-hover align-middle datatable">
+      <thead><tr><th>Task</th><th>Account</th><th>Owner</th><th>Due</th><th>Priority</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for t in rows %}
+      <tr class="{{ 'opacity-50' if t.status == 'Done' }}">
+        <td class="fw-semibold">{{ t.title }}</td>
+        <td>{% if t.account %}<a class="entity-link" href="{{ url_for('mod.account_360', account_id=t.account_id) }}">{{ t.account.name }}</a>{% endif %}</td>
+        <td class="text-muted">{{ t.owner.name if t.owner }}</td>
+        <td class="{{ 'text-danger fw-semibold' if t.due_date and t.due_date < today and t.status == 'Open' else 'text-muted' }}"
+            data-order="{{ t.due_date.isoformat() if t.due_date }}">{{ t.due_date.strftime('%b %d') if t.due_date }}
+          {% if t.due_date and t.due_date < today and t.status == 'Open' %}<span class="badge text-bg-danger ms-1">Overdue</span>{% endif %}</td>
+        <td><span class="badge rounded-pill {{ 'text-bg-danger' if t.priority=='High' else ('text-bg-warning' if t.priority=='Medium' else 'text-bg-light') }}">{{ t.priority }}</span></td>
+        <td><span class="badge rounded-pill {{ 'text-bg-success' if t.status=='Done' else 'text-bg-primary' }}">{{ t.status }}</span></td>
+        <td><button class="edit-btn" title="Edit task" onclick="openEdit('editTaskModal', this)"
+          data-record='{{ {"id": t.id, "title": t.title, "due_date": t.due_date.isoformat() if t.due_date else "", "priority": t.priority, "status": t.status, "account_id": t.account_id or ""}|tojson }}'>
+          <i class="fa-solid fa-pen fa-xs"></i></button></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

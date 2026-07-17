@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% from "_macros.html" import stage_badge %}
+{% block title %}Search{% endblock %}
+{% block content %}
+<h1 class="page-title mb-1">Search</h1>
+<div class="text-muted small mb-4">{{ total }} result{{ 's' if total != 1 }} for “{{ term }}”</div>
+
+{% if results.accounts %}
+<h6 class="fw-semibold text-muted text-uppercase small mb-2">Accounts</h6>
+<div class="card section-card mb-4"><div class="card-body p-0">
+  {% for a in results.accounts %}
+  <a class="dropdown-item py-2 border-bottom" href="{{ url_for('mod.account_360', account_id=a.id) }}">
+    <i class="fa-solid fa-building me-2 text-muted"></i><strong>{{ a.name }}</strong>
+    <span class="text-muted small">· {{ a.industry }} · {{ a.arr|money }} ARR</span></a>
+  {% endfor %}
+</div></div>
+{% endif %}
+
+{% if results.contacts %}
+<h6 class="fw-semibold text-muted text-uppercase small mb-2">Contacts</h6>
+<div class="card section-card mb-4"><div class="card-body p-0">
+  {% for c in results.contacts %}
+  <a class="dropdown-item py-2 border-bottom" href="{{ url_for('mod.account_360', account_id=c.account_id) if c.account_id else '#' }}">
+    <i class="fa-solid fa-user me-2 text-muted"></i><strong>{{ c.name }}</strong>
+    <span class="text-muted small">· {{ c.title }} · {{ c.account.name if c.account }}</span></a>
+  {% endfor %}
+</div></div>
+{% endif %}
+
+{% if results.opportunities %}
+<h6 class="fw-semibold text-muted text-uppercase small mb-2">Opportunities</h6>
+<div class="card section-card mb-4"><div class="card-body p-0">
+  {% for o in results.opportunities %}
+  <a class="dropdown-item py-2 border-bottom" href="{{ url_for('mod.account_360', account_id=o.account_id) if o.account_id else '#' }}">
+    <i class="fa-solid fa-bullseye me-2 text-muted"></i><strong>{{ o.name|truncate(60) }}</strong>
+    <span class="text-muted small">· {{ o.amount|money }}</span> {{ stage_badge(o.stage) }}</a>
+  {% endfor %}
+</div></div>
+{% endif %}
+
+{% if results.contracts %}
+<h6 class="fw-semibold text-muted text-uppercase small mb-2">Contracts</h6>
+<div class="card section-card mb-4"><div class="card-body p-0">
+  {% for c in results.contracts %}
+  <a class="dropdown-item py-2 border-bottom" href="{{ url_for('mod.contracts') }}">
+    <i class="fa-solid fa-file-contract me-2 text-muted"></i><strong>{{ c.number }}</strong>
+    <span class="text-muted small">· {{ c.value|money }}</span></a>
+  {% endfor %}
+</div></div>
+{% endif %}
+
+{% if results.users %}
+<h6 class="fw-semibold text-muted text-uppercase small mb-2">Team</h6>
+<div class="card section-card mb-4"><div class="card-body p-0">
+  {% for u in results.users %}
+  <a class="dropdown-item py-2 border-bottom" href="{{ url_for('mod.users') }}">
+    <i class="fa-solid fa-user-tie me-2 text-muted"></i><strong>{{ u.name }}</strong>
+    <span class="text-muted small">· {{ u.title }}</span></a>
+  {% endfor %}
+</div></div>
+{% endif %}
+
+{% if results.tasks %}
+<h6 class="fw-semibold text-muted text-uppercase small mb-2">Tasks</h6>
+<div class="card section-card mb-4"><div class="card-body p-0">
+  {% for t in results.tasks %}
+  <a class="dropdown-item py-2 border-bottom" href="{{ url_for('mod.tasks') }}">
+    <i class="fa-solid fa-list-check me-2 text-muted"></i>{{ t.title }}
+    <span class="text-muted small">· {{ t.account.name if t.account }}</span></a>
+  {% endfor %}
+</div></div>
+{% endif %}
+
+{% if results.meetings %}
+<h6 class="fw-semibold text-muted text-uppercase small mb-2">Meetings</h6>
+<div class="card section-card mb-4"><div class="card-body p-0">
+  {% for m in results.meetings %}
+  <a class="dropdown-item py-2 border-bottom" href="{{ url_for('mod.meetings') }}">
+    <i class="fa-solid fa-calendar-days me-2 text-muted"></i>{{ m.title }}
+    <span class="text-muted small">· {{ m.start_time.strftime('%b %d, %Y') if m.start_time }}</span></a>
+  {% endfor %}
+</div></div>
+{% endif %}
+
+{% if not total %}
+<div class="card section-card"><div class="card-body text-center text-muted py-5">
+  <i class="fa-solid fa-magnifying-glass fa-2x mb-3 opacity-50"></i>
+  <div>No results{% if term %} for “{{ term }}”{% endif %}. Try an account, contact or deal name.</div>
+</div></div>
+{% endif %}
+{% endblock %}

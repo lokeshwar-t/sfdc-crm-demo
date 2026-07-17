@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}AI Assistant{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="page-title mb-0"><i class="fa-solid fa-wand-magic-sparkles text-ai me-2"></i>CloudVision AI</h1>
+    <div class="text-muted small">Ask anything about your customers, pipeline and revenue</div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card section-card">
+      <div class="card-body d-flex flex-column" style="min-height:60vh">
+        <div id="pageAiMessages" class="ai-messages flex-grow-1" style="max-height:55vh">
+          <div class="ai-msg ai">Hi {{ current_user.name.split()[0] }} — ask me about risks, forecasts, renewals, pipeline health, or any account.</div>
+        </div>
+        <div class="ai-suggest mb-2">
+          <button class="chip" onclick="pageAsk('Which customers are at risk?')">Customers at risk</button>
+          <button class="chip" onclick="pageAsk('What changed this week?')">This week's changes</button>
+          <button class="chip" onclick="pageAsk('Summarize the business')">Business summary</button>
+          <button class="chip" onclick="pageAsk('Predict next quarter')">Predict next quarter</button>
+          <button class="chip" onclick="pageAsk('Generate board meeting summary')">Board summary</button>
+          <button class="chip" onclick="pageAsk('Recommend upsell opportunities')">Upsell ideas</button>
+          <button class="chip" onclick="pageAsk('Forecast cash flow')">Cash flow</button>
+          <button class="chip" onclick="pageAsk('Detect duplicate accounts')">Data cleanup</button>
+        </div>
+        <form class="d-flex gap-2" onsubmit="return pageSubmit(event)">
+          <input type="text" id="pagePrompt" class="form-control" placeholder="Ask anything…" autocomplete="off">
+          <button class="btn btn-ai" type="submit"><i class="fa-solid fa-paper-plane"></i></button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card section-card">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-clock-rotate-left me-2 text-muted"></i>Recent Questions</h6></div>
+      <div class="card-body pt-2">
+        {% for hist in history %}
+        <button class="demo-persona mb-2" onclick="pageAsk('{{ hist.prompt|e }}')">
+          <div class="small fw-semibold">{{ hist.prompt|truncate(60) }}</div>
+          <div class="text-muted" style="font-size:11px">{{ hist.created_at.strftime('%b %d, %I:%M %p') }}</div>
+        </button>
+        {% else %}
+        <div class="text-muted small py-2">No history yet — ask your first question.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function pageAsk(prompt) { document.getElementById('pagePrompt').value = prompt; pageSend(); }
+function pageSubmit(e) { e.preventDefault(); pageSend(); return false; }
+function pageSend() {
+  const input = document.getElementById('pagePrompt');
+  const prompt = input.value.trim();
+  if (!prompt) return;
+  const box = document.getElementById('pageAiMessages');
+  box.insertAdjacentHTML('beforeend', `<div class="ai-msg user">${escapeHtml(prompt)}</div>`);
+  const typing = document.createElement('div');
+  typing.className = 'ai-msg ai typing'; typing.textContent = 'Thinking';
+  box.appendChild(typing); box.scrollTop = box.scrollHeight;
+  input.value = '';
+  fetch('/api/ai/chat', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({prompt: prompt})})
+    .then(r => r.json()).then(d => {
+      setTimeout(() => { typing.classList.remove('typing'); typing.innerHTML = mdLite(d.response);
+        box.scrollTop = box.scrollHeight; }, 500);
+    });
+}
+</script>
+{% endblock %}

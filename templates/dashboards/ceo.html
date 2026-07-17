@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% from "_macros.html" import kpi, health_badge, ai_button %}
+{% block title %}CEO Dashboard{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="page-title mb-0">Executive Overview</h1>
+    <div class="text-muted small">CloudVision Analytics · company performance at a glance</div>
+  </div>
+  {{ ai_button("Summarize the business", "Summarize the business") }}
+</div>
+
+<div class="row row-cols-2 row-cols-md-4 row-cols-xxl-7 g-3 mb-4">
+  {{ kpi("ARR", k.arr|money, "fa-chart-line", "primary", delta=24) }}
+  {{ kpi("MRR", k.mrr|money, "fa-coins", "info") }}
+  {{ kpi("Bookings (QTD)", k.bookings|money, "fa-file-signature", "success", delta=12) }}
+  {{ kpi("Open Pipeline", k.pipeline|money, "fa-bullseye", "warning") }}
+  {{ kpi("Forecast", k.forecast|money, "fa-crystal-ball" if false else "fa-wand-magic-sparkles", "primary") }}
+  {{ kpi("Renewals (90d)", k.renewals_90|money, "fa-rotate", "info") }}
+  {{ kpi("Expansion Pipe", k.expansion|money, "fa-arrow-trend-up", "success") }}
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-7">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0">ARR Growth</h6></div>
+      <div class="card-body" style="height:280px"><canvas id="arrChart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0">Pipeline Funnel</h6></div>
+      <div class="card-body" style="height:280px"><canvas id="funnelChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-4">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0">Renewal Calendar (6 mo)</h6></div>
+      <div class="card-body" style="height:250px"><canvas id="renewalChart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0">Revenue by Region</h6></div>
+      <div class="card-body" style="height:250px"><canvas id="regionChart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0 d-flex justify-content-between">
+        <h6 class="fw-semibold mb-0">Customer Health</h6>
+        <a class="small" href="{{ url_for('mod.customer_success') }}">View all</a>
+      </div>
+      <div class="card-body" style="height:250px"><canvas id="healthChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card section-card">
+      <div class="card-header bg-white border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
+        <h6 class="fw-semibold mb-0"><i class="fa-solid fa-triangle-exclamation text-danger me-2"></i>Top Risks</h6>
+        {{ ai_button("Analyze risks", "Which customers are at risk?") }}
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th class="ps-3">Account</th><th>ARR</th><th>Health</th><th>Trend</th></tr></thead>
+          <tbody>
+          {% for a, h in top_risks %}
+          <tr>
+            <td class="ps-3"><a class="entity-link" href="{{ url_for('mod.account_360', account_id=a.id) }}">{{ a.name }}</a></td>
+            <td>{{ a.arr|money }}</td>
+            <td>{{ health_badge(h.status) }} <span class="small text-muted">{{ h.score }}</span></td>
+            <td><i class="fa-solid fa-arrow-{{ 'trend-down text-danger' if h.trend=='down' else ('trend-up text-success' if h.trend=='up' else 'right-long text-muted') }}"></i></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card section-card">
+      <div class="card-header bg-white border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
+        <h6 class="fw-semibold mb-0"><i class="fa-solid fa-arrow-trend-up text-success me-2"></i>Expansion Opportunities</h6>
+        {{ ai_button("Recommend upsells", "Recommend upsell opportunities") }}
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th class="ps-3">Opportunity</th><th>Amount</th><th>Stage</th><th>Close</th></tr></thead>
+          <tbody>
+          {% for o in expansion_opps %}
+          <tr>
+            <td class="ps-3"><a class="entity-link" href="{{ url_for('mod.account_360', account_id=o.account_id) }}">{{ o.name|truncate(42) }}</a></td>
+            <td>{{ o.amount|money }}</td>
+            <td><span class="badge text-bg-light">{{ o.stage }}</span></td>
+            <td class="small text-muted">{{ o.expected_close.strftime('%b %d') if o.expected_close }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+lineChart('arrChart', '/api/charts/arr-growth', 'ARR ($M)');
+funnelChart('funnelChart', '/api/charts/pipeline-funnel');
+barChart('renewalChart', '/api/charts/renewal-calendar', 'Renewals');
+doughnutChart('regionChart', '/api/charts/regional-revenue');
+doughnutChart('healthChart', '/api/charts/health-distribution', ['#22c55e','#f59e0b','#ef4444']);
+</script>
+{% endblock %}

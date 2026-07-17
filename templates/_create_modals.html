@@ -1,0 +1,241 @@
+{% macro account_select(required=False) %}
+<select class="form-select" name="account_id" {{ 'required' if required }}>
+  <option value="">— Select account —</option>
+  {% for aid, aname in quick_accounts %}
+  <option value="{{ aid }}">{{ aname }}</option>
+  {% endfor %}
+</select>
+{% endmacro %}
+
+<!-- New Account -->
+<div class="modal fade" id="newAccountModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content" style="border-radius:16px">
+    <form method="post" action="{{ url_for('create.account') }}">
+      <div class="modal-header border-0 pb-0"><h6 class="modal-title fw-bold"><i class="fa-solid fa-building me-2 text-primary"></i>New Account</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-2"><label class="form-label small fw-semibold">Account name *</label>
+          <input class="form-control" name="name" required placeholder="Acme Corporation"></div>
+        <div class="row g-2 mb-2">
+          <div class="col-6"><label class="form-label small fw-semibold">Type</label>
+            <select class="form-select" name="type"><option value="prospect">Prospect</option><option value="customer">Customer</option></select></div>
+          <div class="col-6"><label class="form-label small fw-semibold">Segment</label>
+            <select class="form-select" name="segment"><option>Mid-Market</option><option>Enterprise</option><option>SMB</option></select></div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6"><label class="form-label small fw-semibold">Industry</label>
+            <select class="form-select" name="industry">
+              {% for i in ["Technology","Manufacturing","Financial Services","Healthcare","Retail","Energy","Telecommunications","Pharmaceuticals","Logistics","Consumer Goods","Insurance","Media"] %}<option>{{ i }}</option>{% endfor %}
+            </select></div>
+          <div class="col-6"><label class="form-label small fw-semibold">Region</label>
+            <select class="form-select" name="region"><option>North America</option><option>EMEA</option><option>APAC</option><option>LATAM</option></select></div>
+        </div>
+        <div class="row g-2">
+          <div class="col-4"><label class="form-label small fw-semibold">Employees</label>
+            <input class="form-control" name="employees" type="number" min="0" placeholder="500"></div>
+          <div class="col-4"><label class="form-label small fw-semibold">ARR ($)</label>
+            <input class="form-control" name="arr" type="number" min="0" step="1000" placeholder="0"></div>
+          <div class="col-4"><label class="form-label small fw-semibold">Website</label>
+            <input class="form-control" name="website" placeholder="www.acme.com"></div>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary">Create Account</button>
+      </div>
+    </form>
+  </div></div>
+</div>
+
+<!-- New Contact -->
+<div class="modal fade" id="newContactModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content" style="border-radius:16px">
+    <form method="post" action="{{ url_for('create.contact') }}">
+      <div class="modal-header border-0 pb-0"><h6 class="modal-title fw-bold"><i class="fa-solid fa-address-book me-2 text-primary"></i>New Contact</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="row g-2 mb-2">
+          <div class="col-6"><label class="form-label small fw-semibold">First name *</label>
+            <input class="form-control" name="first_name" required></div>
+          <div class="col-6"><label class="form-label small fw-semibold">Last name *</label>
+            <input class="form-control" name="last_name" required></div>
+        </div>
+        <div class="mb-2"><label class="form-label small fw-semibold">Account</label>{{ account_select() }}</div>
+        <div class="mb-2"><label class="form-label small fw-semibold">Title</label>
+          <input class="form-control" name="title" placeholder="VP of Analytics"></div>
+        <div class="row g-2 mb-2">
+          <div class="col-7"><label class="form-label small fw-semibold">Email</label>
+            <input class="form-control" name="email" type="email"></div>
+          <div class="col-5"><label class="form-label small fw-semibold">Phone</label>
+            <input class="form-control" name="phone"></div>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="is_executive_sponsor" id="ncSponsor">
+          <label class="form-check-label small" for="ncSponsor">Executive sponsor</label>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary">Create Contact</button>
+      </div>
+    </form>
+  </div></div>
+</div>
+
+<!-- New Lead -->
+<div class="modal fade" id="newLeadModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content" style="border-radius:16px">
+    <form method="post" action="{{ url_for('create.opportunity') }}">
+      <input type="hidden" name="stage" value="Lead">
+      <div class="modal-header border-0 pb-0"><h6 class="modal-title fw-bold"><i class="fa-solid fa-filter me-2 text-primary"></i>New Lead</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-2"><label class="form-label small fw-semibold">Lead name *</label>
+          <input class="form-control" name="name" required placeholder="Acme — Analytics Modernization"></div>
+        <div class="mb-2"><label class="form-label small fw-semibold">Account *</label>{{ account_select(True) }}</div>
+        <div class="row g-2 mb-2">
+          <div class="col-6"><label class="form-label small fw-semibold">Est. amount ($)</label>
+            <input class="form-control" name="amount" type="number" min="0" step="1000"></div>
+          <div class="col-6"><label class="form-label small fw-semibold">Expected close</label>
+            <input class="form-control" name="expected_close" type="date"></div>
+        </div>
+        <div class="mb-2"><label class="form-label small fw-semibold">Product interest</label>
+          <select class="form-select" name="product_id"><option value="">—</option>
+            {% for p in quick_products %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+          </select></div>
+        <div><label class="form-label small fw-semibold">Next step</label>
+          <input class="form-control" name="next_step" placeholder="Schedule discovery call"></div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary">Create Lead</button>
+      </div>
+    </form>
+  </div></div>
+</div>
+
+<!-- New Opportunity -->
+<div class="modal fade" id="newOppModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content" style="border-radius:16px">
+    <form method="post" action="{{ url_for('create.opportunity') }}">
+      <div class="modal-header border-0 pb-0"><h6 class="modal-title fw-bold"><i class="fa-solid fa-bullseye me-2 text-primary"></i>New Opportunity</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-2"><label class="form-label small fw-semibold">Opportunity name *</label>
+          <input class="form-control" name="name" required placeholder="Acme — Platform Expansion"></div>
+        <div class="mb-2"><label class="form-label small fw-semibold">Account *</label>{{ account_select(True) }}</div>
+        <div class="row g-2 mb-2">
+          <div class="col-4"><label class="form-label small fw-semibold">Stage</label>
+            <select class="form-select" name="stage">
+              {% for s in ["Qualified","Discovery","Proposal","Negotiation"] %}<option>{{ s }}</option>{% endfor %}
+            </select></div>
+          <div class="col-4"><label class="form-label small fw-semibold">Type</label>
+            <select class="form-select" name="opp_type"><option>New Business</option><option>Expansion</option><option>Renewal</option></select></div>
+          <div class="col-4"><label class="form-label small fw-semibold">Amount ($)</label>
+            <input class="form-control" name="amount" type="number" min="0" step="1000"></div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6"><label class="form-label small fw-semibold">Expected close</label>
+            <input class="form-control" name="expected_close" type="date"></div>
+          <div class="col-6"><label class="form-label small fw-semibold">Product</label>
+            <select class="form-select" name="product_id"><option value="">—</option>
+              {% for p in quick_products %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+            </select></div>
+        </div>
+        <div class="row g-2">
+          <div class="col-6"><label class="form-label small fw-semibold">Competitor</label>
+            <select class="form-select" name="competitor"><option value="">None</option>
+              {% for c in ["Tableau","Power BI","Looker","Qlik","Domo","ThoughtSpot"] %}<option>{{ c }}</option>{% endfor %}
+            </select></div>
+          <div class="col-6"><label class="form-label small fw-semibold">Next step</label>
+            <input class="form-control" name="next_step" placeholder="Send proposal"></div>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary">Create Opportunity</button>
+      </div>
+    </form>
+  </div></div>
+</div>
+
+<!-- New Task -->
+<div class="modal fade" id="newTaskModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content" style="border-radius:16px">
+    <form method="post" action="{{ url_for('create.task') }}">
+      <div class="modal-header border-0 pb-0"><h6 class="modal-title fw-bold"><i class="fa-solid fa-list-check me-2 text-primary"></i>New Task</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-2"><label class="form-label small fw-semibold">Task *</label>
+          <input class="form-control" name="title" required placeholder="Send follow-up email"></div>
+        <div class="mb-2"><label class="form-label small fw-semibold">Related account</label>{{ account_select() }}</div>
+        <div class="row g-2">
+          <div class="col-6"><label class="form-label small fw-semibold">Due date</label>
+            <input class="form-control" name="due_date" type="date"></div>
+          <div class="col-6"><label class="form-label small fw-semibold">Priority</label>
+            <select class="form-select" name="priority"><option>Medium</option><option>High</option><option>Low</option></select></div>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary">Create Task</button>
+      </div>
+    </form>
+  </div></div>
+</div>
+
+<!-- New Meeting -->
+<div class="modal fade" id="newMeetingModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content" style="border-radius:16px">
+    <form method="post" action="{{ url_for('create.meeting') }}">
+      <div class="modal-header border-0 pb-0"><h6 class="modal-title fw-bold"><i class="fa-solid fa-calendar-days me-2 text-primary"></i>New Meeting</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-2"><label class="form-label small fw-semibold">Title *</label>
+          <input class="form-control" name="title" required placeholder="QBR: Acme Corporation"></div>
+        <div class="mb-2"><label class="form-label small fw-semibold">Account</label>{{ account_select() }}</div>
+        <div class="row g-2 mb-2">
+          <div class="col-4"><label class="form-label small fw-semibold">Type</label>
+            <select class="form-select" name="meeting_type">{% for t in ["Discovery","Demo","QBR","Executive","Kickoff"] %}<option>{{ t }}</option>{% endfor %}</select></div>
+          <div class="col-4"><label class="form-label small fw-semibold">Date</label>
+            <input class="form-control" name="start_date" type="date"></div>
+          <div class="col-4"><label class="form-label small fw-semibold">Time</label>
+            <input class="form-control" name="start_time" type="time" value="09:00"></div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6"><label class="form-label small fw-semibold">Duration (min)</label>
+            <select class="form-select" name="duration_min"><option>30</option><option selected>60</option><option>45</option><option>90</option></select></div>
+          <div class="col-6"><label class="form-label small fw-semibold">Location</label>
+            <select class="form-select" name="location"><option>Zoom</option><option>Google Meet</option><option>Teams</option><option>On-site</option></select></div>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="is_executive" id="nmExec">
+          <label class="form-check-label small" for="nmExec">Executive meeting</label>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary">Schedule Meeting</button>
+      </div>
+    </form>
+  </div></div>
+</div>
+
+<!-- New Note -->
+<div class="modal fade" id="newNoteModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content" style="border-radius:16px">
+    <form method="post" action="{{ url_for('create.note') }}">
+      <div class="modal-header border-0 pb-0"><h6 class="modal-title fw-bold"><i class="fa-solid fa-note-sticky me-2 text-primary"></i>New Note</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-2"><label class="form-label small fw-semibold">Related account</label>{{ account_select() }}</div>
+        <div><label class="form-label small fw-semibold">Note *</label>
+          <textarea class="form-control" name="body" rows="4" required placeholder="Customer confirmed budget for expansion in Q4…"></textarea></div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary">Save Note</button>
+      </div>
+    </form>
+  </div></div>
+</div>

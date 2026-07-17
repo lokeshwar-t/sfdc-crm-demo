@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% from "_macros.html" import kpi, health_badge, ai_button %}
+{% block title %}Customer Health{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="page-title mb-0">Customer Health</h1>
+    <div class="text-muted small">All customers, scored by usage · meetings · training · NPS · renewal · payment · adoption</div>
+  </div>
+  {{ ai_button("Find risks", "Which customers are at risk?") }}
+</div>
+
+<div class="row row-cols-3 g-3 mb-4" style="max-width:640px">
+  {{ kpi("Green", counts.get("Green",0), "fa-circle-check", "success") }}
+  {{ kpi("Yellow", counts.get("Yellow",0), "fa-circle-exclamation", "warning") }}
+  {{ kpi("Red", counts.get("Red",0), "fa-circle-xmark", "danger") }}
+</div>
+
+<div class="card section-card">
+  <div class="card-body">
+    <table class="table table-hover align-middle datatable">
+      <thead><tr><th>Account</th><th>ARR</th><th>Score</th><th>Status</th><th>Usage</th><th>Adoption</th><th>Training</th><th>NPS</th><th>Exec Mtgs</th><th>Trend</th><th></th></tr></thead>
+      <tbody>
+      {% for a, h in pairs %}
+      <tr>
+        <td><a class="entity-link" href="{{ url_for('mod.account_360', account_id=a.id) }}">{{ a.name }}</a></td>
+        <td data-order="{{ a.arr }}">{{ a.arr|money }}</td>
+        <td class="fw-bold">{{ h.score }}</td>
+        <td>{{ health_badge(h.status) }}</td>
+        <td>{{ h.product_usage }}%</td>
+        <td>{{ h.adoption }}%</td>
+        <td>{{ h.training_completion }}%</td>
+        <td>{{ h.nps }}</td>
+        <td>{{ h.exec_meetings }}</td>
+        <td><i class="fa-solid fa-arrow-{{ 'trend-down text-danger' if h.trend=='down' else ('trend-up text-success' if h.trend=='up' else 'right-long text-muted') }}"></i></td>
+        <td>{{ ai_button("", "Identify churn risk", a.id, "btn-light") }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

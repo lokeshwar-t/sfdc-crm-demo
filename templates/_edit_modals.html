@@ -1,0 +1,154 @@
+{% macro account_select_e() %}
+<select class="form-select" name="account_id">
+  <option value="">— Select account —</option>
+  {% for aid, aname in quick_accounts %}
+  <option value="{{ aid }}">{{ aname }}</option>
+  {% endfor %}
+</select>
+{% endmacro %}
+
+<!-- Edit Account -->
+<div class="modal fade" id="editAccountModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content" style="border-radius:16px">
+    <form method="post" data-action-base="/edit/account/">
+      <div class="modal-header border-0 pb-0"><h6 class="modal-title fw-bold"><i class="fa-solid fa-pen me-2 text-primary"></i>Edit Account</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-2"><label class="form-label small fw-semibold">Account name *</label>
+          <input class="form-control" name="name" required></div>
+        <div class="row g-2 mb-2">
+          <div class="col-6"><label class="form-label small fw-semibold">Type</label>
+            <select class="form-select" name="type"><option value="prospect">Prospect</option><option value="customer">Customer</option></select></div>
+          <div class="col-6"><label class="form-label small fw-semibold">Segment</label>
+            <select class="form-select" name="segment"><option>Mid-Market</option><option>Enterprise</option><option>SMB</option></select></div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6"><label class="form-label small fw-semibold">Industry</label>
+            <select class="form-select" name="industry">
+              {% for i in ["Technology","Manufacturing","Financial Services","Healthcare","Retail","Energy","Telecommunications","Pharmaceuticals","Logistics","Consumer Goods","Insurance","Media"] %}<option>{{ i }}</option>{% endfor %}
+            </select></div>
+          <div class="col-6"><label class="form-label small fw-semibold">Region</label>
+            <select class="form-select" name="region"><option>North America</option><option>EMEA</option><option>APAC</option><option>LATAM</option></select></div>
+        </div>
+        <div class="row g-2">
+          <div class="col-4"><label class="form-label small fw-semibold">Employees</label>
+            <input class="form-control" name="employees" type="number" min="0"></div>
+          <div class="col-4"><label class="form-label small fw-semibold">ARR ($)</label>
+            <input class="form-control" name="arr" type="number" min="0" step="1000"></div>
+          <div class="col-4"><label class="form-label small fw-semibold">Website</label>
+            <input class="form-control" name="website"></div>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary">Save Changes</button>
+      </div>
+    </form>
+  </div></div>
+</div>
+
+<!-- Edit Contact -->
+<div class="modal fade" id="editContactModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content" style="border-radius:16px">
+    <form method="post" data-action-base="/edit/contact/">
+      <div class="modal-header border-0 pb-0"><h6 class="modal-title fw-bold"><i class="fa-solid fa-pen me-2 text-primary"></i>Edit Contact</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="row g-2 mb-2">
+          <div class="col-6"><label class="form-label small fw-semibold">First name *</label>
+            <input class="form-control" name="first_name" required></div>
+          <div class="col-6"><label class="form-label small fw-semibold">Last name *</label>
+            <input class="form-control" name="last_name" required></div>
+        </div>
+        <div class="mb-2"><label class="form-label small fw-semibold">Account</label>{{ account_select_e() }}</div>
+        <div class="mb-2"><label class="form-label small fw-semibold">Title</label>
+          <input class="form-control" name="title"></div>
+        <div class="row g-2 mb-2">
+          <div class="col-7"><label class="form-label small fw-semibold">Email</label>
+            <input class="form-control" name="email" type="email"></div>
+          <div class="col-5"><label class="form-label small fw-semibold">Phone</label>
+            <input class="form-control" name="phone"></div>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="is_executive_sponsor" id="ecSponsor">
+          <label class="form-check-label small" for="ecSponsor">Executive sponsor</label>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary">Save Changes</button>
+      </div>
+    </form>
+  </div></div>
+</div>
+
+<!-- Edit Opportunity -->
+<div class="modal fade" id="editOppModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content" style="border-radius:16px">
+    <form method="post" data-action-base="/edit/opportunity/">
+      <div class="modal-header border-0 pb-0"><h6 class="modal-title fw-bold"><i class="fa-solid fa-pen me-2 text-primary"></i>Edit Opportunity</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-2"><label class="form-label small fw-semibold">Opportunity name *</label>
+          <input class="form-control" name="name" required></div>
+        <div class="row g-2 mb-2">
+          <div class="col-4"><label class="form-label small fw-semibold">Stage</label>
+            <select class="form-select" name="stage">
+              {% for s in ["Lead","Qualified","Discovery","Proposal","Negotiation","Closed Won","Closed Lost"] %}<option>{{ s }}</option>{% endfor %}
+            </select></div>
+          <div class="col-4"><label class="form-label small fw-semibold">Type</label>
+            <select class="form-select" name="opp_type"><option>New Business</option><option>Expansion</option><option>Renewal</option></select></div>
+          <div class="col-4"><label class="form-label small fw-semibold">Amount ($)</label>
+            <input class="form-control" name="amount" type="number" min="0" step="1000"></div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6"><label class="form-label small fw-semibold">Expected close</label>
+            <input class="form-control" name="expected_close" type="date"></div>
+          <div class="col-6"><label class="form-label small fw-semibold">Product</label>
+            <select class="form-select" name="product_id"><option value="">—</option>
+              {% for p in quick_products %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+            </select></div>
+        </div>
+        <div class="row g-2">
+          <div class="col-6"><label class="form-label small fw-semibold">Competitor</label>
+            <select class="form-select" name="competitor"><option value="">None</option>
+              {% for c in ["Tableau","Power BI","Looker","Qlik","Domo","ThoughtSpot"] %}<option>{{ c }}</option>{% endfor %}
+            </select></div>
+          <div class="col-6"><label class="form-label small fw-semibold">Next step</label>
+            <input class="form-control" name="next_step"></div>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary">Save Changes</button>
+      </div>
+    </form>
+  </div></div>
+</div>
+
+<!-- Edit Task -->
+<div class="modal fade" id="editTaskModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content" style="border-radius:16px">
+    <form method="post" data-action-base="/edit/task/">
+      <div class="modal-header border-0 pb-0"><h6 class="modal-title fw-bold"><i class="fa-solid fa-pen me-2 text-primary"></i>Edit Task</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-2"><label class="form-label small fw-semibold">Task *</label>
+          <input class="form-control" name="title" required></div>
+        <div class="mb-2"><label class="form-label small fw-semibold">Related account</label>{{ account_select_e() }}</div>
+        <div class="row g-2">
+          <div class="col-4"><label class="form-label small fw-semibold">Due date</label>
+            <input class="form-control" name="due_date" type="date"></div>
+          <div class="col-4"><label class="form-label small fw-semibold">Priority</label>
+            <select class="form-select" name="priority"><option>Medium</option><option>High</option><option>Low</option></select></div>
+          <div class="col-4"><label class="form-label small fw-semibold">Status</label>
+            <select class="form-select" name="status"><option>Open</option><option>Done</option></select></div>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary">Save Changes</button>
+      </div>
+    </form>
+  </div></div>
+</div>

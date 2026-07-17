@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% from "_macros.html" import ai_button %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="page-title mb-0">Analytics &amp; Reports</h1>
+    <div class="text-muted small">Interactive company-wide analytics</div>
+  </div>
+  {{ ai_button("Explain dashboard", "Summarize the business") }}
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card section-card">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0">ARR Growth</h6></div>
+      <div class="card-body" style="height:260px"><canvas id="arrChart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card section-card">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0">Customer Health</h6></div>
+      <div class="card-body" style="height:260px"><canvas id="healthChart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card section-card">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0">Pipeline Funnel</h6></div>
+      <div class="card-body" style="height:250px"><canvas id="funnelChart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card section-card">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0">Revenue by Industry</h6></div>
+      <div class="card-body" style="height:250px"><canvas id="industryChart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card section-card">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0">Revenue by Region</h6></div>
+      <div class="card-body" style="height:250px"><canvas id="regionChart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card section-card">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0">Customer Segmentation</h6></div>
+      <div class="card-body" style="height:250px"><canvas id="segChart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card section-card">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0">Top Products (Closed Won)</h6></div>
+      <div class="card-body" style="height:250px"><canvas id="productChart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card section-card">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0">Quota Attainment</h6></div>
+      <div class="card-body" style="height:250px"><canvas id="quotaChart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card section-card">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0">Renewal Calendar</h6></div>
+      <div class="card-body" style="height:250px"><canvas id="renewalChart"></canvas></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+lineChart('arrChart', '/api/charts/arr-growth', 'ARR ($M)');
+doughnutChart('healthChart', '/api/charts/health-distribution', ['#22c55e','#f59e0b','#ef4444']);
+funnelChart('funnelChart', '/api/charts/pipeline-funnel');
+barChart('industryChart', '/api/charts/industry-revenue', 'ARR', true);
+doughnutChart('regionChart', '/api/charts/regional-revenue');
+doughnutChart('segChart', '/api/charts/segmentation');
+barChart('productChart', '/api/charts/top-products', 'Revenue', true);
+barChart('quotaChart', '/api/charts/quota-attainment', '%', false, false);
+barChart('renewalChart', '/api/charts/renewal-calendar', 'Renewals');
+</script>
+{% endblock %}

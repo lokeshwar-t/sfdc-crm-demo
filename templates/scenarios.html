@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% from "_macros.html" import kpi %}
+{% block title %}Scenario Analysis{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <h1 class="page-title mb-0"><i class="fa-solid fa-sliders me-2 text-ai"></i>Scenario Analysis</h1>
+  <div class="text-muted small">Model pipeline outcomes and renewal forecasts under different assumptions</div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card section-card">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0">Assumptions</h6></div>
+      <div class="card-body">
+        <label class="form-label small fw-semibold d-flex justify-content-between">Win rate adjustment <span id="winVal" class="text-ai">+0 pts</span></label>
+        <input type="range" class="form-range" id="winAdj" min="-20" max="20" value="0" oninput="runScenario()">
+        <label class="form-label small fw-semibold d-flex justify-content-between mt-3">Renewal likelihood adjustment <span id="renewVal" class="text-ai">+0 pts</span></label>
+        <input type="range" class="form-range" id="renewAdj" min="-20" max="20" value="0" oninput="runScenario()">
+        <label class="form-label small fw-semibold d-flex justify-content-between mt-3">Average deal size change <span id="dealVal" class="text-ai">+0%</span></label>
+        <input type="range" class="form-range" id="dealAdj" min="-25" max="25" value="0" oninput="runScenario()">
+        <hr>
+        <div class="small text-muted mb-2">Presets</div>
+        <div class="d-flex flex-wrap gap-1">
+          <button class="chip" onclick="preset(0,0,0)">Base case</button>
+          <button class="chip" onclick="preset(10,8,5)">Bull case</button>
+          <button class="chip" onclick="preset(-10,-10,-8)">Bear case</button>
+          <button class="chip" onclick="preset(-15,-18,-12)">Recession</button>
+        </div>
+        <hr>
+        <div class="small text-muted">Baseline (next 180 days): {{ n_open }} open deals worth {{ pipe|money }} · {{ n_renewals }} renewals worth {{ renew_base|money }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="row row-cols-2 g-3 mb-3">
+      <div class="col"><div class="card section-card h-100"><div class="card-body">
+        <div class="kpi-label">Pipeline (adjusted)</div><div class="kpi-value" id="outPipe">—</div>
+      </div></div></div>
+      <div class="col"><div class="card section-card h-100"><div class="card-body">
+        <div class="kpi-label">Weighted Forecast</div><div class="kpi-value text-primary" id="outForecast">—</div>
+        <div class="kpi-sub">baseline {{ weighted|money }}</div>
+      </div></div></div>
+      <div class="col"><div class="card section-card h-100"><div class="card-body">
+        <div class="kpi-label">Renewal Forecast</div><div class="kpi-value text-info" id="outRenew">—</div>
+        <div class="kpi-sub">baseline {{ renew_weighted|money }}</div>
+      </div></div></div>
+      <div class="col"><div class="card section-card h-100"><div class="card-body">
+        <div class="kpi-label">Churn Exposure</div><div class="kpi-value text-danger" id="outChurn">—</div>
+        <div class="kpi-sub">at-risk today: {{ at_risk_amt|money }}</div>
+      </div></div></div>
+    </div>
+    <div class="card section-card">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0">Total Revenue Outlook (180 days)</h6></div>
+      <div class="card-body" style="height:260px"><canvas id="scenarioChart"></canvas></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let chart;
+function fmt(v) { return v >= 1e6 ? '$' + (v/1e6).toFixed(1) + 'M' : '$' + Math.round(v/1e3) + 'K'; }
+function preset(w, r, d) {
+  document.getElementById('winAdj').value = w;
+  document.getElementById('renewAdj').value = r;
+  document.getElementById('dealAdj').value = d;
+  runScenario();
+}
+function runScenario() {
+  const w = +document.getElementById('winAdj').value;
+  const r = +document.getElementById('renewAdj').value;
+  const d = +document.getElementById('dealAdj').value;
+  document.getElementById('winVal').textContent = (w >= 0 ? '+' : '') + w + ' pts';
+  document.getElementById('renewVal').textContent = (r >= 0 ? '+' : '') + r + ' pts';
+  document.getElementById('dealVal').textContent = (d >= 0 ? '+' : '') + d + '%';
+  fetch('/api/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({win_adj: w, renew_adj: r, deal_adj: d})})
+    .then(x => x.json()).then(res => {
+      document.getElementById('outPipe').textContent = fmt(res.pipeline);
+      document.getElementById('outForecast').textContent = fmt(res.forecast);
+      document.getElementById('outRenew').textContent = fmt(res.renew_forecast);
+      document.getElementById('outChurn').textContent = fmt(res.churn_exposure);
+      const data = [res.forecast/1e6, res.renew_forecast/1e6, res.total_outlook/1e6];
+      if (!chart) {
+        chart = new Chart(document.getElementById('scenarioChart'), {
+          type: 'bar',
+          data: {labels: ['New Business Forecast', 'Renewal Forecast', 'Total Outlook'],
+            datasets: [{data: data, backgroundColor: ['#6366f1cc','#0ea5e9cc','#10b981cc'], borderRadius: 10, maxBarThickness: 70}]},
+          options: {maintainAspectRatio: false, plugins: {legend: {display:false}},
+            scales: {y: {grid:{color:'#eef0f5'}, ticks: {callback: v => '$' + v.toFixed(1) + 'M'}}, x: {grid:{display:false}}}}
+        });
+      } else { chart.data.datasets[0].data = data; chart.update(); }
+    });
+}
+runScenario();
+</script>
+{% endblock %}

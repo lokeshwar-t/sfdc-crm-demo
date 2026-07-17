@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "_macros.html" import stage_badge %}
+{% block title %}Leads{% endblock %}
+{% block content %}
+<h1 class="page-title mb-1">Leads &amp; Early Pipeline</h1>
+<div class="text-muted small mb-3">Opportunities in Lead / Qualified stage</div>
+<div class="card section-card">
+  <div class="card-body">
+    <table class="table table-hover align-middle datatable">
+      <thead><tr><th>Opportunity</th><th>Account</th><th>Stage</th><th>Amount</th><th>Owner</th><th>Expected Close</th><th>AI Score</th></tr></thead>
+      <tbody>
+      {% for o in rows %}
+      <tr>
+        <td class="fw-semibold">{{ o.name|truncate(48) }}</td>
+        <td>{% if o.account %}<a class="entity-link" href="{{ url_for('mod.account_360', account_id=o.account_id) }}">{{ o.account.name }}</a>{% endif %}</td>
+        <td>{{ stage_badge(o.stage) }}</td>
+        <td data-order="{{ o.amount }}">{{ o.amount|money }}</td>
+        <td class="text-muted">{{ o.owner.name if o.owner }}</td>
+        <td class="text-muted">{{ o.expected_close.strftime('%b %d, %Y') if o.expected_close }}</td>
+        <td data-order="{{ o.ai_score }}"><span class="ai-score {{ 'hi' if o.ai_score >= 70 else ('mid' if o.ai_score >= 40 else 'lo') }}">{{ o.ai_score }}</span></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

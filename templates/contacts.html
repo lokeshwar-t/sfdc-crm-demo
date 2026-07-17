@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "_macros.html" import avatar %}
+{% block title %}Contacts{% endblock %}
+{% block content %}
+<h1 class="page-title mb-3">Contacts</h1>
+<div class="card section-card">
+  <div class="card-body">
+    <table class="table table-hover align-middle datatable">
+      <thead><tr><th>Name</th><th>Title</th><th>Account</th><th>Email</th><th>Phone</th><th>Sponsor</th><th></th></tr></thead>
+      <tbody>
+      {% for c in rows %}
+      <tr>
+        <td><div class="d-flex align-items-center gap-2">{{ avatar(c.name, '#94a3b8', 28) }}<span class="fw-semibold">{{ c.name }}</span></div></td>
+        <td>{{ c.title }}</td>
+        <td>{% if c.account %}<a class="entity-link" href="{{ url_for('mod.account_360', account_id=c.account_id) }}">{{ c.account.name }}</a>{% endif %}</td>
+        <td class="text-muted">{{ c.email }}</td>
+        <td class="text-muted">{{ c.phone }}</td>
+        <td>{% if c.is_executive_sponsor %}<i class="fa-solid fa-star text-warning"></i>{% endif %}</td>
+        <td><button class="edit-btn" title="Edit contact" onclick="openEdit('editContactModal', this)"
+          data-record='{{ {"id": c.id, "first_name": c.first_name, "last_name": c.last_name, "title": c.title or "", "email": c.email or "", "phone": c.phone or "", "is_executive_sponsor": c.is_executive_sponsor, "account_id": c.account_id or ""}|tojson }}'>
+          <i class="fa-solid fa-pen fa-xs"></i></button></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

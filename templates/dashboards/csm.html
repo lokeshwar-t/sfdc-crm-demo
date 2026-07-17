@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% from "_macros.html" import kpi, health_badge, ai_button %}
+{% block title %}Customer Success{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="page-title mb-0">Customer Success</h1>
+    <div class="text-muted small">Health, adoption and renewals across your book</div>
+  </div>
+  {{ ai_button("Identify churn risk", "Identify churn risk in my accounts") }}
+</div>
+
+<div class="row row-cols-2 row-cols-md-5 g-3 mb-4">
+  {{ kpi("Book of Business", book|money, "fa-briefcase", "primary") }}
+  {{ kpi("Accounts", my_accounts|length, "fa-building", "info") }}
+  {{ kpi("Green", green, "fa-heart-pulse", "success") }}
+  {{ kpi("Yellow", yellow, "fa-heart-pulse", "warning") }}
+  {{ kpi("Red", red, "fa-heart-pulse", "danger") }}
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-7">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0 d-flex justify-content-between">
+        <h6 class="fw-semibold mb-0"><i class="fa-solid fa-heart-pulse me-2 text-danger"></i>Customer Health</h6>
+        <a class="small" href="{{ url_for('mod.customer_success') }}">Full view</a>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th class="ps-3">Account</th><th>ARR</th><th>Health</th><th>Adoption</th><th></th></tr></thead>
+          <tbody>
+          {% for a in my_accounts[:10] %}
+          {% set h = healths.get(a.id) %}
+          <tr>
+            <td class="ps-3"><a class="entity-link small" href="{{ url_for('mod.account_360', account_id=a.id) }}">{{ a.name }}</a></td>
+            <td class="small">{{ a.arr|money }}</td>
+            <td>{% if h %}{{ health_badge(h.status) }} <span class="small text-muted">{{ h.score }}</span>{% endif %}</td>
+            <td style="min-width:110px">
+              {% if h %}
+              <div class="d-flex align-items-center gap-2">
+                <div class="progress flex-grow-1" style="height:6px">
+                  <div class="progress-bar {{ 'bg-success' if h.adoption >= 70 else ('bg-warning' if h.adoption >= 40 else 'bg-danger') }}" style="width:{{ h.adoption }}%"></div>
+                </div><span class="small text-muted">{{ h.adoption }}%</span>
+              </div>
+              {% endif %}
+            </td>
+            <td>{{ ai_button("QBR", "Prepare a QBR", a.id, "btn-light") }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card section-card mb-3">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-rotate me-2 text-info"></i>Upcoming Renewals</h6></div>
+      <div class="card-body pt-2">
+        {% for r in renewals[:6] %}
+        <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+          <div>
+            <a class="entity-link small" href="{{ url_for('mod.account_360', account_id=r.account_id) }}">{{ r.account.name if r.account }}</a>
+            <div class="text-muted" style="font-size:11.5px">{{ r.renewal_date.strftime('%b %d, %Y') }} · {{ r.status }}</div>
+          </div>
+          <div class="text-end">
+            <div class="fw-semibold small">{{ r.amount|money }}</div>
+            <span class="ai-score {{ 'hi' if r.likelihood >= 75 else ('mid' if r.likelihood >= 55 else 'lo') }}">{{ r.likelihood }}%</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="card section-card">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-calendar-check me-2 text-success"></i>QBR Schedule</h6></div>
+      <div class="card-body pt-2">
+        {% for m in qbrs %}
+        <div class="d-flex align-items-center gap-3 py-2 border-bottom">
+          <div class="text-center" style="min-width:44px">
+            <div class="fw-bold small">{{ m.start_time.strftime('%d') }}</div>
+            <div class="text-muted" style="font-size:10.5px">{{ m.start_time.strftime('%b') }}</div>
+          </div>
+          <div class="flex-grow-1">
+            <div class="small fw-semibold">{{ m.title|truncate(36) }}</div>
+            <div class="text-muted" style="font-size:11.5px">{{ m.start_time.strftime('%I:%M %p') }} · {{ m.location }}</div>
+          </div>
+          {{ ai_button("Prep", "Prepare a QBR", m.account_id or '', "btn-light") }}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-arrow-trend-up me-2 text-success"></i>Expansion Opportunities</h6></div>
+      <div class="card-body p-0">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th class="ps-3">Opportunity</th><th>Amount</th><th>Stage</th></tr></thead>
+          <tbody>
+          {% for o in expansion %}
+          <tr>
+            <td class="ps-3"><a class="entity-link small" href="{{ url_for('mod.account_360', account_id=o.account_id) }}">{{ o.name|truncate(44) }}</a></td>
+            <td class="small fw-semibold">{{ o.amount|money }}</td>
+            <td><span class="badge text-bg-light">{{ o.stage }}</span></td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card section-card h-100">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-user-tie me-2 text-secondary"></i>Executive Sponsors</h6></div>
+      <div class="card-body pt-2">
+        {% set sponsor_count = namespace(n=0) %}
+        {% for a in my_accounts %}
+          {% for c in a.contacts if c.is_executive_sponsor and sponsor_count.n < 8 %}
+            {% set sponsor_count.n = sponsor_count.n + 1 %}
+            <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+              <div>
+                <div class="small fw-semibold">{{ c.name }} <span class="text-muted fw-normal">· {{ c.title }}</span></div>
+                <div class="text-muted" style="font-size:11.5px">{{ a.name }}</div>
+              </div>
+              <span class="badge rounded-pill text-bg-light"><i class="fa-solid fa-star text-warning me-1"></i>Sponsor</span>
+            </div>
+          {% endfor %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -88,3 +88,36 @@ migration step is needed.
 `routes/agent_api.py` exposes a token-authenticated `/api/agent/*` surface (the
 data-plane an external orchestrator drives). Import
 `CloudVision_Agent_API.postman_collection.json` into Postman to exercise it.
+
+### Meeting-Prep trigger (Morning Briefing page)
+
+The Morning Briefing page has a **Meeting-Prep Agent** panel: a 4h/8h/24h/48h
+time-window selector and a **Run Meeting Prep** button. The workflow runs
+asynchronously:
+
+1. The button POSTs to `/api/meeting-prep/run` (browser-session authed), which
+   calls Refold's Cobalt workflow `execute` endpoint (`sync_execution: false`)
+   with `{"hours": "<window>"}` and returns the **execution id**.
+2. The browser polls `/api/meeting-prep/status/<execution_id>` every 3s (up to
+   2.5 min), showing a loader, until the execution reaches `success` or `error`.
+3. On success the briefing is rendered; on failure/timeout a clear message shows.
+
+The CRM does no reasoning — Refold owns the LLM node and pulls context back
+through `/api/agent/*`. API key and linked account are shared credentials set
+globally via env:
+
+| Var | Purpose |
+|---|---|
+| `REFOLD_API_KEY` | Global Cobalt `X-API-Key`. Unset → button reports "not configured". |
+| `REFOLD_LINKED_ACCOUNT_ID` | Global Cobalt `linked_account_id`. Required. |
+| `REFOLD_API_BASE` | Cobalt base URL (default `https://cobalt-skc.uscentral1.gocobalt.io`) |
+| `REFOLD_MEETING_PREP_WORKFLOW_ID` | Workflow id for the execute call (default `6a5f73903284520f7515020f`) |
+| `REFOLD_MEETING_PREP_SLUG` | `slug` header sent on execute (default `Coba-8517`) |
+| `REFOLD_CONFIG_ID` | Optional `config_id` header (omitted when unset) |
+| `REFOLD_HTTP_TIMEOUT` | Per-request timeout in seconds (default 30) |
+
+**Output shape** — the poll response's execution envelope is unwrapped
+(`output`/`result`/`response`/`data`) to find the workflow output. The UI renders
+an optional top-level `summary` plus a `meetings` array of
+`{title, account, start_time, briefing, actionables[]}`. Any other JSON is shown
+raw so a demo never dead-ends.

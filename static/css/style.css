@@ -173,3 +173,8 @@ a.entity-link:hover { color: var(--brand); }
   .sidebar.open { transform: none; }
   .main-area { margin-left: 0; }
 }
+
+/* Meeting-Prep collapsible cards */
+.mp-toggle { cursor: pointer; }
+.mp-toggle .mp-caret { transition: transform .2s ease; }
+.mp-toggle.collapsed .mp-caret { transform: rotate(-90deg); }

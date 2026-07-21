@@ -33,6 +33,17 @@ def create_app():
     app.register_blueprint(edit_bp)
     app.register_blueprint(agent_bp)
 
+    @app.template_global()
+    def asset(filename):
+        """Static URL with a cache-busting ?v=<mtime> so edits always reload."""
+        path = os.path.join(app.static_folder, filename)
+        try:
+            v = int(os.path.getmtime(path))
+        except OSError:
+            v = 0
+        from flask import url_for
+        return url_for("static", filename=filename, v=v)
+
     @app.template_filter("money")
     def money(v):
         v = v or 0

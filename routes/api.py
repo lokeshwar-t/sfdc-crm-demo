@@ -1,10 +1,14 @@
+import json
+import urllib.request
+import urllib.error
 from datetime import date, timedelta
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from flask_login import login_required, current_user
 from sqlalchemy import func
 from database import db
 from models import Account, Opportunity, Renewal, CustomerHealth, User, Role, UsageMetric
 import ai_service
+import agent_core as core
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 OPEN_STAGES = ["Lead", "Qualified", "Discovery", "Proposal", "Negotiation"]
@@ -21,6 +25,158 @@ def ai_chat():
     answer = ai_service.ask(prompt, user=current_user, account=account,
                             context_label=data.get("context", "global"))
     return jsonify({"response": answer})
+
+
+# Upcoming meetings for the briefing panel — uses the SAME source the agent
+# briefs (agent_core.upcoming_meetings), so the list mirrors the workflow's set.
+@api_bp.route("/meetings/upcoming")
+@login_required
+def meetings_upcoming_ui():
+    try:
+        hours = int(request.args.get("hours", 24))
+    except (TypeError, ValueError):
+        hours = 24
+    if hours not in current_app.config["MEETING_PREP_WINDOWS"]:
+        hours = 24
+    meetings = core.upcoming_meetings(hours)
+    return jsonify(hours=hours, count=len(meetings), meetings=[
+        {"id": m.id, "title": m.title,
+         "start_time": m.start_time.isoformat() if m.start_time else None,
+         "location": m.location, "account_id": m.account_id} for m in meetings])
+
+
+# ---------------- Meeting-Prep agent trigger ----------------
+# The button on the Briefing page fires Refold's Meeting-Prep workflow and polls
+# for its result. The CRM does NOT reason — Refold owns the LLM node and pulls
+# context back through the token-authed /api/agent/* surface. The workflow runs
+# async: `run` starts it and returns an execution id; the browser then polls
+# `status/<id>` until the execution reaches a terminal state.
+_EXEC_SUCCESS = {"success", "succeeded", "successful", "completed", "complete",
+                 "done", "finished", "ok"}
+_EXEC_FAILURE = {"failed", "failure", "error", "errored", "cancelled",
+                 "canceled", "timeout", "timed_out", "aborted", "rejected"}
+
+
+def _refold_configured():
+    c = current_app.config
+    return bool(c.get("REFOLD_API_KEY") and c.get("REFOLD_LINKED_ACCOUNT_ID"))
+
+
+def _short(v, n=600):
+    s = json.dumps(v) if isinstance(v, (dict, list)) else str(v)
+    return s[:n]
+
+
+def _refold_call(method, url, headers, body=None):
+    """Make one Refold request. Returns (ok, status_code, parsed). Never raises."""
+    data = json.dumps(body).encode("utf-8") if body is not None else None
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    timeout = current_app.config.get("REFOLD_HTTP_TIMEOUT", 30)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw, code = resp.read().decode("utf-8"), resp.getcode()
+    except urllib.error.HTTPError as e:
+        raw, code = e.read().decode("utf-8", "replace"), e.code
+    except urllib.error.URLError as e:
+        return False, 502, {"error": "network", "detail": str(e.reason)}
+    except Exception as e:  # timeout, etc.
+        return False, 502, {"error": "request_failed", "detail": str(e)}
+    try:
+        parsed = json.loads(raw) if raw else {}
+    except ValueError:
+        parsed = {"raw": raw}
+    return (200 <= code < 300), code, parsed
+
+
+def _extract_execution_id(resp):
+    if not isinstance(resp, dict):
+        return None
+    for k in ("execution_id", "executionId", "_id", "id", "execution"):
+        v = resp.get(k)
+        if isinstance(v, str) and v:
+            return v
+        if isinstance(v, dict):  # nested object holding the id
+            nested = _extract_execution_id(v)
+            if nested:
+                return nested
+    if isinstance(resp.get("data"), dict):
+        return _extract_execution_id(resp["data"])
+    return None
+
+
+def _execution_state(resp):
+    """Normalize Refold's execution status into running | success | error."""
+    if not isinstance(resp, dict):
+        return "running", ""
+    data = resp.get("data") if isinstance(resp.get("data"), dict) else {}
+    status = str(resp.get("status") or resp.get("state")
+                 or data.get("status") or data.get("state") or "").lower()
+    if status in _EXEC_SUCCESS:
+        return "success", status
+    if status in _EXEC_FAILURE:
+        return "error", status
+    return "running", status
+
+
+@api_bp.route("/meeting-prep/run", methods=["POST"])
+@login_required
+def meeting_prep_run():
+    data = request.get_json(silent=True) or {}
+    try:
+        hours = int(data.get("hours", 24))
+    except (TypeError, ValueError):
+        hours = 24
+    if hours not in current_app.config["MEETING_PREP_WINDOWS"]:
+        return jsonify(error=f"hours must be one of "
+                             f"{current_app.config['MEETING_PREP_WINDOWS']}"), 400
+    if not _refold_configured():
+        return jsonify(error="Meeting-Prep workflow is not configured.",
+                       hint="Set REFOLD_API_KEY and REFOLD_LINKED_ACCOUNT_ID."), 503
+
+    c = current_app.config
+    url = (f"{c['REFOLD_API_BASE'].rstrip('/')}"
+           f"/api/v1/workflow/{c['REFOLD_MEETING_PREP_WORKFLOW_ID']}/execute")
+    headers = {
+        "Content-Type": "application/json",
+        "X-API-Key": c["REFOLD_API_KEY"],
+        "linked_account_id": c["REFOLD_LINKED_ACCOUNT_ID"],
+        "sync_execution": "false",
+    }
+    if c.get("REFOLD_MEETING_PREP_SLUG"):
+        headers["slug"] = c["REFOLD_MEETING_PREP_SLUG"]
+    if c.get("REFOLD_CONFIG_ID"):
+        headers["config_id"] = c["REFOLD_CONFIG_ID"]
+
+    ok, code, resp = _refold_call("POST", url, headers, body={"hours": str(hours)})
+    if not ok:
+        return jsonify(error="Could not start the Meeting-Prep workflow.",
+                       detail=_short(resp), status=code), 502
+    exec_id = _extract_execution_id(resp)
+    if not exec_id:
+        return jsonify(error="Workflow started but no execution id was returned.",
+                       detail=_short(resp)), 502
+    return jsonify(ok=True, execution_id=exec_id, window_hours=hours)
+
+
+@api_bp.route("/meeting-prep/status/<execution_id>")
+@login_required
+def meeting_prep_status(execution_id):
+    if not _refold_configured():
+        return jsonify(error="Meeting-Prep workflow is not configured."), 503
+    c = current_app.config
+    url = (f"{c['REFOLD_API_BASE'].rstrip('/')}"
+           f"/api/v2/public/execution/{execution_id}")
+    headers = {
+        "x-api-key": c["REFOLD_API_KEY"],
+        "linked_account_id": c["REFOLD_LINKED_ACCOUNT_ID"],
+    }
+    ok, code, resp = _refold_call("GET", url, headers)
+    if not ok:
+        return jsonify(error="Could not fetch workflow status.",
+                       detail=_short(resp), status=code), 502
+    state, status_raw = _execution_state(resp)
+    return jsonify(ok=True, state=state, status=status_raw,
+                   execution_id=execution_id, result=resp)
 
 
 # ---------------- chart data ----------------

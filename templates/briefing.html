@@ -10,6 +10,30 @@
   {{ ai_button("AI narrative", "What changed this week?") }}
 </div>
 
+<!-- Meeting-Prep agent (Refold workflow trigger) -->
+<div class="card section-card mb-4" id="meetingPrepCard">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div>
+        <h6 class="fw-semibold mb-1"><i class="fa-solid fa-robot me-2 text-primary"></i>Meeting-Prep Agent</h6>
+        <div class="text-muted small">Brief me on every meeting in the window ahead — powered by the Refold agent.</div>
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <div class="btn-group" role="group" aria-label="Time window" id="mpWindow">
+          {% for w in mp_windows %}
+          <button type="button" class="btn btn-sm btn-outline-primary{{ ' active' if w == 24 }}"
+                  data-hours="{{ w }}" onclick="mpSelectWindow(this)">{{ w }}h</button>
+          {% endfor %}
+        </div>
+        <button type="button" class="btn btn-sm btn-ai" id="mpRunBtn" onclick="runMeetingPrep()">
+          <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Run Meeting Prep
+        </button>
+      </div>
+    </div>
+    <div id="mpResult" class="mt-3 d-none"></div>
+  </div>
+</div>
+
 <div class="row row-cols-2 row-cols-md-4 g-3 mb-4">
   {{ kpi("ARR", k.arr|money, "fa-chart-line", "primary") }}
   {{ kpi("Bookings (QTD)", k.bookings|money, "fa-file-signature", "success") }}
@@ -32,15 +56,9 @@
       </div>
     </div>
     <div class="card section-card">
-      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-calendar-days me-2 text-primary"></i>Next 48 Hours</h6></div>
-      <div class="card-body pt-2">
-        {% for m in recent_meetings %}
-        <div class="py-2 border-bottom">
-          <div class="small fw-semibold">{{ m.title|truncate(44) }}</div>
-          <div class="text-muted" style="font-size:11.5px">{{ m.start_time.strftime('%a %b %d, %I:%M %p') }} · {{ m.location }}</div>
-        </div>
-        {% else %}<div class="text-muted small py-2">No meetings scheduled.</div>
-        {% endfor %}
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-calendar-days me-2 text-primary"></i><span id="mpMeetingsTitle">Next 24 Hours</span></h6></div>
+      <div class="card-body pt-2" id="mpMeetingsList">
+        <div class="text-muted small py-2">Loading…</div>
       </div>
     </div>
   </div>

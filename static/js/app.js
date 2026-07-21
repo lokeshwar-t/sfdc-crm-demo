@@ -55,6 +55,311 @@ function mdLite(s) {
     .replace(/\n/g, '<br>');
 }
 
+// ---------- Meeting-Prep agent ----------
+let mpHours = 24;
+const MP_STORE_KEY = 'mp:lastRun';   // sessionStorage — survives tab navigation, clears with the session
+let mpRelTimer = null;
+
+function mpSelectWindow(btn) {
+  mpHours = parseInt(btn.dataset.hours, 10);
+  mpSetActiveWindow(mpHours);
+  mpLoadMeetings(mpHours);   // keep the "Next Xh" list in step with the selection
+}
+
+// Populate the upcoming-meetings panel from the SAME source the agent briefs.
+function mpLoadMeetings(hours) {
+  const list = document.getElementById('mpMeetingsList');
+  if (!list) return;
+  const title = document.getElementById('mpMeetingsTitle');
+  if (title) title.textContent = `Next ${hours} Hours`;
+  fetch(`/api/meetings/upcoming?hours=${hours}`)
+    .then(r => r.json())
+    .then(d => {
+      const ms = d.meetings || [];
+      if (!ms.length) { list.innerHTML = '<div class="text-muted small py-2">No meetings scheduled.</div>'; return; }
+      list.innerHTML = ms.map(m => `<div class="py-2 border-bottom">
+          <div class="small fw-semibold">${escapeHtml((m.title || '').slice(0, 44))}</div>
+          <div class="text-muted" style="font-size:11.5px">${mpFmtMeetingTime(m.start_time)}${m.location ? ' · ' + escapeHtml(m.location) : ''}</div>
+        </div>`).join('');
+    })
+    .catch(() => { list.innerHTML = '<div class="text-muted small py-2">Could not load meetings.</div>'; });
+}
+
+function mpFmtMeetingTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);   // naive (UTC-seeded) time renders as-is, matching the server
+  if (isNaN(d)) return escapeHtml(iso);
+  const date = d.toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: '2-digit'}).replace(',', '');
+  const time = d.toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'});
+  return `${date}, ${time}`;
+}
+
+function mpSetActiveWindow(hours) {
+  document.querySelectorAll('#mpWindow .btn').forEach(b =>
+    b.classList.toggle('active', parseInt(b.dataset.hours, 10) === hours));
+}
+
+// Persist / restore the last run so navigating away and back doesn't re-trigger it.
+function mpSaveRun(exec, hours, ts) {
+  try {
+    sessionStorage.setItem(MP_STORE_KEY, JSON.stringify({exec: exec, hours: hours, generatedAt: ts}));
+  } catch (e) { /* quota / serialization — non-fatal, just won't persist */ }
+}
+
+function mpRestore() {
+  let saved = null;
+  try { saved = JSON.parse(sessionStorage.getItem(MP_STORE_KEY) || 'null'); } catch (e) { saved = null; }
+  if (!saved || !saved.exec) return;
+  mpHours = saved.hours || mpHours;
+  mpSetActiveWindow(mpHours);
+  const box = document.getElementById('mpResult');
+  box.classList.remove('d-none');
+  box.innerHTML = renderMeetingPrep(saved.exec, mpHours, saved.generatedAt);
+  mpStartRelTimer();
+}
+
+function mpFmtTime(ts) {
+  return new Date(ts).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
+}
+
+function mpRelTime(ts) {
+  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (s < 45) return 'just now';
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} min ago`;
+  const h = Math.floor(m / 60), rem = m % 60;
+  return rem ? `${h} hr ${rem} min ago` : `${h} hr ago`;
+}
+
+// Keep every "X ago" label current without re-rendering the cards.
+function mpStartRelTimer() {
+  if (mpRelTimer) return;
+  mpRelTimer = setInterval(() => {
+    const els = document.querySelectorAll('.mp-rel');
+    if (!els.length) { clearInterval(mpRelTimer); mpRelTimer = null; return; }
+    els.forEach(el => { el.textContent = mpRelTime(+el.dataset.ts); });
+  }, 30000);
+}
+
+const MP_POLL_INTERVAL = 3000;   // ms between status polls
+const MP_MAX_MS = 150000;        // give up after 2.5 min
+let mpPollTimer = null;
+
+function runMeetingPrep() {
+  const btn = document.getElementById('mpRunBtn');
+  const box = document.getElementById('mpResult');
+  const original = btn.innerHTML;
+  const started = Date.now();
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Preparing…';
+  box.classList.remove('d-none');
+  mpShowLoader(box, 0);
+
+  const finish = (html) => {
+    if (mpPollTimer) { clearTimeout(mpPollTimer); mpPollTimer = null; }
+    box.innerHTML = html;
+    btn.disabled = false;
+    btn.innerHTML = original;
+  };
+
+  fetch('/api/meeting-prep/run', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({hours: mpHours})
+  }).then(async r => ({ok: r.ok, data: await r.json()}))
+    .then(({ok, data}) => {
+      if (!ok || data.error || !data.execution_id) { finish(mpError(data)); return; }
+      mpPoll(data.execution_id, started, finish, box);
+    })
+    .catch(() => finish(mpError({error: 'Could not reach the agent.'})));
+}
+
+function mpPoll(execId, started, finish, box) {
+  mpShowLoader(box, Math.round((Date.now() - started) / 1000));
+  fetch(`/api/meeting-prep/status/${encodeURIComponent(execId)}`)
+    .then(async r => ({ok: r.ok, data: await r.json()}))
+    .then(({ok, data}) => {
+      if (!ok || data.error) { finish(mpError(data)); return; }
+      if (data.state === 'success') {
+        const ts = Date.now();
+        mpSaveRun(data.result, mpHours, ts);
+        finish(renderMeetingPrep(data.result, mpHours, ts));
+        mpStartRelTimer();
+        return;
+      }
+      if (data.state === 'error') {
+        finish(mpError({error: 'The workflow reported a failure.',
+                        detail: _short(data.result)}));
+        return;
+      }
+      if (Date.now() - started > MP_MAX_MS) {
+        finish(mpError({error: 'Timed out waiting for the workflow.',
+                        detail: `Still ${data.status || 'running'} after ${Math.round(MP_MAX_MS / 1000)}s (execution ${execId}).`}));
+        return;
+      }
+      mpPollTimer = setTimeout(() => mpPoll(execId, started, finish, box), MP_POLL_INTERVAL);
+    })
+    .catch(() => {
+      if (Date.now() - started > MP_MAX_MS) { finish(mpError({error: 'Lost connection while polling the workflow.'})); return; }
+      mpPollTimer = setTimeout(() => mpPoll(execId, started, finish, box), MP_POLL_INTERVAL);
+    });
+}
+
+function mpShowLoader(box, elapsed) {
+  box.innerHTML = `<div class="d-flex align-items-center text-muted small">
+      <span class="spinner-border spinner-border-sm me-2 text-primary"></span>
+      Refold is briefing you on the next ${mpHours} hours… <span class="ms-1">(${elapsed}s)</span>
+    </div>`;
+}
+
+function mpError(data) {
+  data = data || {};
+  return `<div class="alert alert-warning mb-0 py-2 small">
+    <i class="fa-solid fa-triangle-exclamation me-1"></i>${escapeHtml(data.error || 'Something went wrong.')}
+    ${data.detail ? `<div class="text-muted mt-1" style="word-break:break-word">${escapeHtml(String(data.detail))}</div>` : ''}
+    ${data.hint ? `<div class="text-muted mt-1">${escapeHtml(data.hint)}</div>` : ''}
+  </div>`;
+}
+
+function _short(v, n) {
+  n = n || 400;
+  const s = (typeof v === 'object' && v !== null) ? JSON.stringify(v) : String(v);
+  return s.length > n ? s.slice(0, n) + '…' : s;
+}
+
+// Dig the array of meeting briefs out of the Cobalt execution response.
+// Shape: { nodes: [ { latest_output: { body: { briefs: [...] } } } ] }
+function mpExtractBriefs(exec) {
+  if (!exec || typeof exec !== 'object') return [];
+  const looksLikeBrief = (x) => x && typeof x === 'object' && (x.brief || x.meeting_title);
+
+  const bodies = [];
+  if (Array.isArray(exec.nodes)) {
+    exec.nodes.forEach(n => { if (n && n.latest_output) bodies.push(n.latest_output.body); });
+  }
+  bodies.push(exec.body, exec.result, exec.output, exec);  // fallbacks
+
+  for (const body of bodies) {
+    if (body && Array.isArray(body.briefs)) return body.briefs;
+    if (Array.isArray(body) && body.some(looksLikeBrief)) return body.filter(looksLikeBrief);
+  }
+  return [];
+}
+
+function mpHealthClass(h) {
+  h = (h || '').toLowerCase();
+  if (h.includes('green')) return 'bg-success-subtle text-success';
+  if (h.includes('yellow')) return 'bg-warning-subtle text-warning';
+  if (h.includes('red')) return 'bg-danger-subtle text-danger';
+  return 'bg-light text-dark border';
+}
+
+function mpList(items, cls) {
+  return `<ul class="small mb-0 ps-3 ${cls || ''}">${items.map(i => `<li class="mb-1">${escapeHtml(String(i))}</li>`).join('')}</ul>`;
+}
+
+function mpGeneratedLabel(ts) {
+  if (!ts) return '';
+  return `<div class="small text-muted"><i class="fa-regular fa-clock me-1"></i>Generated ${mpFmtTime(ts)} · <span class="mp-rel" data-ts="${ts}">${mpRelTime(ts)}</span></div>`;
+}
+
+function renderMeetingPrep(exec, hours, ts) {
+  const briefs = mpExtractBriefs(exec);
+  if (!briefs.length) {
+    return `<div class="text-center text-muted py-4">
+        <i class="fa-regular fa-calendar-check fa-2x mb-2 d-block text-secondary"></i>
+        <div class="fw-semibold">No meetings in the next ${hours} hours</div>
+        <div class="small">Nothing to prep for this window — try a longer one.</div>
+        ${ts ? `<div class="mt-2">${mpGeneratedLabel(ts)}</div>` : ''}
+        <details class="mt-3 text-start"><summary class="small text-secondary" style="cursor:pointer">Raw workflow response</summary>
+          <pre class="small bg-light p-2 rounded mt-2 mb-0" style="white-space:pre-wrap;max-height:240px;overflow:auto">${escapeHtml(JSON.stringify(exec, null, 2))}</pre>
+        </details>
+      </div>`;
+  }
+
+  let html = `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+      <div>
+        <span class="badge bg-primary-subtle text-primary me-2">Next ${hours}h</span>
+        <span class="small text-muted">${briefs.length} meeting${briefs.length === 1 ? '' : 's'} briefed by the agent</span>
+      </div>
+      <div class="d-flex align-items-center flex-wrap gap-3">
+        ${mpGeneratedLabel(ts)}
+        <div class="btn-group btn-group-sm">
+          <button type="button" class="btn btn-outline-secondary" onclick="mpToggleAll(true)"><i class="fa-solid fa-angles-down me-1"></i>Expand all</button>
+          <button type="button" class="btn btn-outline-secondary" onclick="mpToggleAll(false)"><i class="fa-solid fa-angles-up me-1"></i>Collapse all</button>
+        </div>
+      </div>
+    </div><div class="row g-3">`;
+
+  briefs.forEach((item, i) => {
+    const b = item.brief || item;
+    const title = item.meeting_title || b.meeting_title || 'Meeting';
+    const tps = b.talking_points || [];
+    const risks = b.risks || [];
+    const hasHealth = b.health && String(b.health).toLowerCase() !== 'not available';
+    const hasRenewal = b.renewal && String(b.renewal).toLowerCase() !== 'not available';
+    const bodyId = `mpBody${i}`;
+
+    html += `<div class="col-12">
+      <div class="card section-card">
+        <div class="card-header bg-white border-0 py-2 mp-toggle" role="button" tabindex="0"
+             data-bs-toggle="collapse" data-bs-target="#${bodyId}" aria-expanded="true" aria-controls="${bodyId}">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h6 class="fw-semibold mb-0">
+              <i class="fa-solid fa-chevron-down me-2 mp-caret text-muted small"></i>
+              <i class="fa-solid fa-calendar-check me-2 text-primary"></i>${escapeHtml(title)}
+            </h6>
+            <div class="d-flex gap-2 flex-wrap">
+              ${hasHealth ? `<span class="badge ${mpHealthClass(b.health)}"><i class="fa-solid fa-heart-pulse me-1"></i>${escapeHtml(b.health)}</span>` : ''}
+              ${hasRenewal ? `<span class="badge bg-light text-dark border"><i class="fa-solid fa-rotate me-1"></i>Renewal ${escapeHtml(b.renewal)}</span>` : ''}
+            </div>
+          </div>
+        </div>
+        <div id="${bodyId}" class="collapse show mp-collapse">
+          <div class="card-body pt-2">
+            ${b.situation ? `<p class="small text-muted mb-3">${escapeHtml(b.situation)}</p>` : ''}
+            <div class="row g-3">
+              ${tps.length ? `<div class="col-md-6">
+                <div class="fw-semibold small mb-1"><i class="fa-solid fa-comment-dots me-1 text-info"></i>Talking points</div>
+                ${mpList(tps)}
+              </div>` : ''}
+              ${risks.length ? `<div class="col-md-6">
+                <div class="fw-semibold small mb-1"><i class="fa-solid fa-triangle-exclamation me-1 text-warning"></i>Risks</div>
+                ${mpList(risks)}
+              </div>` : ''}
+            </div>
+            ${b.recommended_ask ? `<div class="alert alert-primary py-2 px-3 small mt-3 mb-0"><i class="fa-solid fa-bullseye me-1"></i><strong>Recommended ask:</strong> ${escapeHtml(b.recommended_ask)}</div>` : ''}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  html += '</div>';
+  return html;
+}
+
+// Expand/collapse every meeting card at once (keeps carets + aria in sync via Bootstrap).
+function mpToggleAll(show) {
+  document.querySelectorAll('#mpResult .mp-collapse').forEach(el => {
+    const c = bootstrap.Collapse.getOrCreateInstance(el, {toggle: false});
+    show ? c.show() : c.hide();
+  });
+}
+
+// Restore the last briefing on load so tab navigation doesn't force a re-run.
+function mpInit() {
+  if (!document.getElementById('mpResult')) return;
+  mpRestore();                 // may set mpHours from the saved run
+  mpLoadMeetings(mpHours);     // reflect the restored/default window in the list
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', mpInit);
+} else {
+  mpInit();
+}
+
 // ---------- Charts ----------
 const CV = {
   colors: ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#14b8a6'],

@@ -15,3 +15,15 @@ services:
         generateValue: true          # rotate the agent API token off the demo default
       - key: PYTHON_VERSION
         value: "3.12.6"
+      # --- Refold (Cobalt) workflow secrets — enter values in the Render dashboard ---
+      - key: REFOLD_API_KEY
+        sync: false                  # Cobalt X-API-Key — set in dashboard, never in git
+      - key: REFOLD_LINKED_ACCOUNT_ID
+        sync: false                  # Cobalt linked_account_id — set in dashboard
+      # Non-secret defaults; uncomment to override the values baked into config.py
+      # - key: REFOLD_API_BASE
+      #   value: "https://cobalt-skc.uscentral1.gocobalt.io"
+      # - key: REFOLD_MEETING_PREP_WORKFLOW_ID
+      #   value: "6a5f73903284520f7515020f"
+      # - key: REFOLD_MEETING_PREP_SLUG
+      #   value: "Coba-8517"

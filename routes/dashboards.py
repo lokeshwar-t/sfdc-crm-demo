@@ -1,5 +1,5 @@
 from datetime import date, datetime, timedelta
-from flask import Blueprint, render_template, redirect, url_for
+from flask import Blueprint, render_template, redirect, url_for, current_app
 from flask_login import login_required, current_user
 from sqlalchemy import func
 from database import db
@@ -193,7 +193,8 @@ def briefing():
     recent_activity = Activity.query.filter(Activity.activity_date >= since) \
         .order_by(Activity.activity_date.desc()).limit(10).all()
     return render_template("briefing.html", k=k, new_won=new_won, recent_meetings=recent_meetings,
-                           health_drops=health_drops, renewals_30=renewals_30, recent_activity=recent_activity)
+                           health_drops=health_drops, renewals_30=renewals_30, recent_activity=recent_activity,
+                           mp_windows=current_app.config["MEETING_PREP_WINDOWS"])
 
 
 @dash_bp.route("/scenarios")

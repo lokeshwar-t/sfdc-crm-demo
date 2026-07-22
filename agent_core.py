@@ -118,6 +118,16 @@ def upcoming_renewals(days=90):
             .order_by(Renewal.renewal_date).all())
 
 
+def at_risk_accounts(limit=10):
+    """The riskiest customer accounts (lowest health first) for Churn Sentinel."""
+    from models import CustomerHealth
+    return (db.session.query(Account, CustomerHealth)
+            .join(CustomerHealth, CustomerHealth.account_id == Account.id)
+            .order_by(CustomerHealth.score.asc(),
+                      CustomerHealth.nps.asc())
+            .limit(limit).all())
+
+
 def _months_to(d):
     return None if not d else max(0, (d - date.today()).days // 30)
 
@@ -176,6 +186,59 @@ def meeting_context(m):
         "contacts": [
             {"name": c.name, "title": c.title,
              "exec_sponsor": c.is_executive_sponsor} for c in (acct.contacts if acct else [])],
+        "recent_activities": [
+            {"type": a.activity_type, "subject": a.subject,
+             "date": a.activity_date.isoformat() if a.activity_date else None}
+            for a in acts],
+        "recent_emails": [
+            {"subject": e.subject, "snippet": e.snippet,
+             "sent_at": e.sent_at.isoformat() if e.sent_at else None} for e in emails],
+        "open_tasks": [{"title": t.title, "priority": t.priority} for t in tasks],
+    }
+
+
+def account_churn_context(acct):
+    """The compact JSON block Refold's Churn Sentinel LLM reasons over.
+
+    Pure assembly of existing records — deterministic, no intelligence.
+    """
+    h = acct.health
+    open_opps = [o for o in acct.opportunities
+                 if o.stage not in ("Closed Won", "Closed Lost")]
+    renewal = (Renewal.query.filter_by(account_id=acct.id)
+               .order_by(Renewal.renewal_date).first())
+    acts = (Activity.query.filter_by(account_id=acct.id)
+            .order_by(Activity.activity_date.desc()).limit(5).all())
+    emails = (Email.query.filter_by(account_id=acct.id)
+              .order_by(Email.sent_at.desc()).limit(5).all())
+    tasks = Task.query.filter_by(account_id=acct.id, status="Open").all()
+
+    return {
+        "account": {
+            "id": acct.id, "name": acct.name, "industry": acct.industry,
+            "segment": acct.segment, "arr": acct.arr,
+            "csm": acct.csm.name if acct.csm else None,
+            "csm_id": acct.csm.id if acct.csm else None,
+        },
+        "health": {
+            "score": h.score, "status": h.status, "trend": h.trend,
+            "product_usage": h.product_usage, "adoption": h.adoption,
+            "exec_meetings_90d": h.exec_meetings, "nps": h.nps,
+            "training_completion": h.training_completion,
+        } if h else None,
+        "renewal": {
+            "date": renewal.renewal_date.isoformat() if renewal and renewal.renewal_date else None,
+            "days_out": _days_to(renewal.renewal_date) if renewal else None,
+            "amount": renewal.amount, "likelihood": renewal.likelihood,
+            "status": renewal.status,
+        } if renewal else None,
+        "open_opportunities": [
+            {"name": o.name, "stage": o.stage, "amount": o.amount,
+             "ai_score": o.ai_score, "next_step": o.next_step}
+            for o in open_opps],
+        "contacts": [
+            {"name": c.name, "title": c.title,
+             "exec_sponsor": c.is_executive_sponsor} for c in acct.contacts],
         "recent_activities": [
             {"type": a.activity_type, "subject": a.subject,
              "date": a.activity_date.isoformat() if a.activity_date else None}

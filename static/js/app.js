@@ -566,6 +566,186 @@ function renderRenewalPrep(exec, days, ts) {
   return html;
 }
 
+// ---------- Churn Sentinel agent (read → reason → act; writes back to the CRM) ----------
+let csLimit = 10;
+const CS_STORE_KEY = 'cs:lastRun';
+let csPollTimer = null;
+
+function csSelectWindow(btn) {
+  csLimit = parseInt(btn.dataset.limit, 10);
+  csSetActiveWindow(csLimit);
+}
+
+function csSetActiveWindow(limit) {
+  document.querySelectorAll('#csWindow .btn').forEach(b =>
+    b.classList.toggle('active', parseInt(b.dataset.limit, 10) === limit));
+}
+
+function csSaveRun(exec, limit, ts) {
+  try { sessionStorage.setItem(CS_STORE_KEY, JSON.stringify({exec: exec, limit: limit, generatedAt: ts})); } catch (e) {}
+}
+
+function csRestore() {
+  let saved = null;
+  try { saved = JSON.parse(sessionStorage.getItem(CS_STORE_KEY) || 'null'); } catch (e) { saved = null; }
+  if (!saved || !saved.exec) return;
+  csLimit = saved.limit || csLimit;
+  csSetActiveWindow(csLimit);
+  const box = document.getElementById('csResult');
+  box.classList.remove('d-none');
+  box.innerHTML = renderChurnSentinel(saved.exec, csLimit, saved.generatedAt);
+  mpStartRelTimer();
+}
+
+function runChurnSentinel() {
+  const btn = document.getElementById('csRunBtn');
+  const box = document.getElementById('csResult');
+  const original = btn.innerHTML;
+  const started = Date.now();
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sweeping…';
+  box.classList.remove('d-none');
+  csShowLoader(box, 0);
+
+  const finish = (html) => {
+    if (csPollTimer) { clearTimeout(csPollTimer); csPollTimer = null; }
+    box.innerHTML = html;
+    btn.disabled = false;
+    btn.innerHTML = original;
+  };
+
+  fetch('/api/churn-sentinel/run', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({limit: csLimit})
+  }).then(async r => ({ok: r.ok, data: await r.json()}))
+    .then(({ok, data}) => {
+      if (!ok || data.error || !data.execution_id) { finish(mpError(data)); return; }
+      csPoll(data.execution_id, started, finish, box);
+    })
+    .catch(() => finish(mpError({error: 'Could not reach the agent.'})));
+}
+
+function csPoll(execId, started, finish, box) {
+  csShowLoader(box, Math.round((Date.now() - started) / 1000));
+  fetch(`/api/churn-sentinel/status/${encodeURIComponent(execId)}`)
+    .then(async r => ({ok: r.ok, data: await r.json()}))
+    .then(({ok, data}) => {
+      if (!ok || data.error) { finish(mpError(data)); return; }
+      if (data.state === 'success') {
+        const ts = Date.now();
+        csSaveRun(data.result, csLimit, ts);
+        finish(renderChurnSentinel(data.result, csLimit, ts));
+        mpStartRelTimer();
+        return;
+      }
+      if (data.state === 'error') {
+        finish(mpError({error: 'The workflow reported a failure.', detail: _short(data.result)}));
+        return;
+      }
+      if (Date.now() - started > MP_MAX_MS) {
+        finish(mpError({error: 'Timed out waiting for the workflow.',
+                        detail: `Still ${data.status || 'running'} after ${Math.round(MP_MAX_MS / 1000)}s (execution ${execId}).`}));
+        return;
+      }
+      csPollTimer = setTimeout(() => csPoll(execId, started, finish, box), MP_POLL_INTERVAL);
+    })
+    .catch(() => {
+      if (Date.now() - started > MP_MAX_MS) { finish(mpError({error: 'Lost connection while polling the workflow.'})); return; }
+      csPollTimer = setTimeout(() => csPoll(execId, started, finish, box), MP_POLL_INTERVAL);
+    });
+}
+
+function csShowLoader(box, elapsed) {
+  box.innerHTML = `<div class="d-flex align-items-center text-muted small">
+      <span class="spinner-border spinner-border-sm me-2 text-primary"></span>
+      Refold is sweeping the ${csLimit} riskiest accounts and filing save-plays… <span class="ms-1">(${elapsed}s)</span>
+    </div>`;
+}
+
+// Render the actions the agent wrote back (notifications / tasks) as green pills.
+function csActionsTaken(item, b) {
+  const acts = item.actions_taken || item.actions || b.actions_taken || b.actions || [];
+  if (!acts.length) return '';
+  const pill = (a) => {
+    const label = typeof a === 'string' ? a
+      : (a.title || a.message || a.label || a.summary || (a.type ? a.type : 'action'));
+    const icon = /task/i.test(a.type || '') ? 'fa-list-check'
+      : (/notif|alert/i.test(a.type || '') ? 'fa-bell' : 'fa-check');
+    return `<span class="badge bg-success-subtle text-success border border-success-subtle me-1 mb-1"><i class="fa-solid ${icon} me-1"></i>${escapeHtml(String(label))}</span>`;
+  };
+  return `<div class="mt-3"><div class="fw-semibold small mb-1"><i class="fa-solid fa-bolt me-1 text-success"></i>Actions taken by the agent</div>
+    <div class="d-flex flex-wrap">${acts.map(pill).join('')}</div></div>`;
+}
+
+function renderChurnSentinel(exec, limit, ts) {
+  const briefs = mpExtractBriefs(exec);
+  if (!briefs.length) {
+    return `<div class="text-center text-muted py-4">
+        <i class="fa-regular fa-face-smile fa-2x mb-2 d-block text-secondary"></i>
+        <div class="fw-semibold">No at-risk accounts surfaced</div>
+        ${ts ? `<div class="mt-2">${mpGeneratedLabel(ts)}</div>` : ''}
+        <details class="mt-3 text-start"><summary class="small text-secondary" style="cursor:pointer">Raw workflow response</summary>
+          <pre class="small bg-light p-2 rounded mt-2 mb-0" style="white-space:pre-wrap;max-height:240px;overflow:auto">${escapeHtml(JSON.stringify(exec, null, 2))}</pre>
+        </details>
+      </div>`;
+  }
+
+  let html = `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+      <div>
+        <span class="badge bg-primary-subtle text-primary me-2">Top ${limit}</span>
+        <span class="small text-muted">${briefs.length} account${briefs.length === 1 ? '' : 's'} swept &amp; actioned by the agent</span>
+      </div>
+      <div class="d-flex align-items-center flex-wrap gap-3">
+        ${mpGeneratedLabel(ts)}
+        <div class="btn-group btn-group-sm">
+          <button type="button" class="btn btn-outline-secondary" onclick="mpToggleAll(true, '#csResult')"><i class="fa-solid fa-angles-down me-1"></i>Expand all</button>
+          <button type="button" class="btn btn-outline-secondary" onclick="mpToggleAll(false, '#csResult')"><i class="fa-solid fa-angles-up me-1"></i>Collapse all</button>
+        </div>
+      </div>
+    </div><div class="row g-3">`;
+
+  briefs.forEach((item, i) => {
+    const b = agentUnwrapBrief(item.brief || item);
+    const account = item.account || b.account || 'Account';
+    const csm = item.csm || b.csm;
+    const risks = b.risks || b.signals || [];
+    const play = b.recommended_play || b.save_play || b.recommended_ask || b.play;
+    const hasHealth = b.health && String(b.health).toLowerCase() !== 'not available';
+    const bodyId = `csBody${i}`;
+
+    html += `<div class="col-12">
+      <div class="card section-card">
+        <div class="card-header bg-white border-0 py-2 mp-toggle" role="button" tabindex="0"
+             data-bs-toggle="collapse" data-bs-target="#${bodyId}" aria-expanded="true" aria-controls="${bodyId}">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h6 class="fw-semibold mb-0">
+              <i class="fa-solid fa-chevron-down me-2 mp-caret text-muted small"></i>
+              <i class="fa-solid fa-heart-crack me-2 text-danger"></i>${escapeHtml(account)}
+            </h6>
+            <div class="d-flex gap-2 flex-wrap align-items-center">
+              ${csm ? `<span class="badge bg-light text-dark border"><i class="fa-regular fa-user me-1"></i>${escapeHtml(csm)}</span>` : ''}
+              ${hasHealth ? `<span class="badge ${mpHealthClass(b.health)}"><i class="fa-solid fa-heart-pulse me-1"></i>${escapeHtml(b.health)}</span>` : ''}
+            </div>
+          </div>
+        </div>
+        <div id="${bodyId}" class="collapse show mp-collapse">
+          <div class="card-body pt-2">
+            ${b.situation ? `<p class="small text-muted mb-3">${escapeHtml(b.situation)}</p>` : ''}
+            ${risks.length ? `<div class="fw-semibold small mb-1"><i class="fa-solid fa-triangle-exclamation me-1 text-warning"></i>Risk signals</div>${mpList(risks)}` : ''}
+            ${play ? `<div class="alert alert-primary py-2 px-3 small mt-3 mb-0"><i class="fa-solid fa-life-ring me-1"></i><strong>Save play:</strong> ${escapeHtml(play)}</div>` : ''}
+            ${csActionsTaken(item, b)}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  html += '</div>';
+  return html;
+}
+
 // Restore the last briefing on load so tab navigation doesn't force a re-run.
 function mpInit() {
   if (document.getElementById('mpResult')) {
@@ -574,6 +754,9 @@ function mpInit() {
   }
   if (document.getElementById('rpResult')) {
     rpRestore();
+  }
+  if (document.getElementById('csResult')) {
+    csRestore();
   }
 }
 if (document.readyState === 'loading') {
@@ -743,6 +926,7 @@ function showToast(msg, type) {
 }
 
 // ---------- DataTables ----------
+const agentDT = {};   // id -> DataTable instance (for programmatic filtering)
 document.addEventListener('DOMContentLoaded', () => {
   const _dtInstances = [];
   document.querySelectorAll('table.datatable').forEach(t => {
@@ -752,7 +936,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (t.dataset.orderCol !== undefined) {
       opts.order = [[parseInt(t.dataset.orderCol, 10), t.dataset.orderDir || 'asc']];
     }
-    _dtInstances.push(new DataTable(t, opts));
+    const inst = new DataTable(t, opts);
+    _dtInstances.push(inst);
+    if (t.id) agentDT[t.id] = inst;
   });
   // DataTables initialized inside a hidden tab mis-sizes columns — recalc on show.
   document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(btn => {
@@ -763,3 +949,14 @@ document.addEventListener('DOMContentLoaded', () => {
     bootstrap.Alert.getOrCreateInstance(el).close();
   }), 3500);
 });
+
+// Customer Health KPI boxes act as status filters on the health table.
+function csFilterHealth(status, el) {
+  const dt = agentDT['healthTable'];
+  if (!dt) return;
+  const wasActive = el.classList.contains('active');
+  document.querySelectorAll('#healthKpis .kpi-filter').forEach(k => k.classList.remove('active'));
+  // toggle off if the active box is clicked again, else filter to that status
+  dt.column(3).search(wasActive ? '' : status).draw();
+  if (!wasActive) el.classList.add('active');
+}

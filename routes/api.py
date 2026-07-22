@@ -234,6 +234,45 @@ def renewal_prep_status(execution_id):
     return _status_payload(execution_id)
 
 
+@api_bp.route("/churn-sentinel/run", methods=["POST"])
+@login_required
+def churn_sentinel_run():
+    data = request.get_json(silent=True) or {}
+    try:
+        limit = int(data.get("limit", 10))
+    except (TypeError, ValueError):
+        limit = 10
+    if limit not in current_app.config["CHURN_LIMITS"]:
+        return jsonify(error=f"limit must be one of "
+                             f"{current_app.config['CHURN_LIMITS']}"), 400
+    if not _refold_configured():
+        return jsonify(error="Churn Sentinel workflow is not configured.",
+                       hint="Set REFOLD_API_KEY and REFOLD_LINKED_ACCOUNT_ID."), 503
+    c = current_app.config
+    if not c.get("REFOLD_CHURN_WORKFLOW_ID"):
+        return jsonify(error="Churn Sentinel workflow is not configured.",
+                       hint="Set REFOLD_CHURN_WORKFLOW_ID to the Cobalt workflow id."), 503
+    ok, code, resp = _start_workflow(c["REFOLD_CHURN_WORKFLOW_ID"],
+                                     c.get("REFOLD_CHURN_SLUG"),
+                                     {"limit": str(limit)})
+    if not ok:
+        return jsonify(error="Could not start the Churn Sentinel workflow.",
+                       detail=_short(resp), status=code), 502
+    exec_id = _extract_execution_id(resp)
+    if not exec_id:
+        return jsonify(error="Workflow started but no execution id was returned.",
+                       detail=_short(resp)), 502
+    return jsonify(ok=True, execution_id=exec_id, window_limit=limit)
+
+
+@api_bp.route("/churn-sentinel/status/<execution_id>")
+@login_required
+def churn_sentinel_status(execution_id):
+    if not _refold_configured():
+        return jsonify(error="Churn Sentinel workflow is not configured."), 503
+    return _status_payload(execution_id)
+
+
 # ---------------- chart data ----------------
 
 @api_bp.route("/charts/arr-growth")

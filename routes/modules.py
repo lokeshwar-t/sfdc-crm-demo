@@ -136,7 +136,8 @@ def customer_success():
     counts = {"Green": 0, "Yellow": 0, "Red": 0}
     for _, h in pairs:
         counts[h.status] = counts.get(h.status, 0) + 1
-    return render_template("customer_success.html", pairs=pairs, counts=counts)
+    return render_template("customer_success.html", pairs=pairs, counts=counts,
+                           cs_limits=current_app.config["CHURN_LIMITS"])
 
 
 @mod_bp.route("/products")

@@ -102,6 +102,30 @@ def renewal_context(renewal_id):
     return jsonify(core.renewal_context(r))
 
 
+@agent_bp.route("/at-risk-accounts")
+@require_agent_token
+def at_risk_accounts():
+    limit = request.args.get("limit", default=10, type=int)
+    rows = core.at_risk_accounts(limit)
+    return jsonify(count=len(rows), limit=limit, accounts=[
+        {"id": a.id, "account": a.name, "arr": a.arr,
+         "csm": a.csm.name if a.csm else None,
+         "csm_id": a.csm.id if a.csm else None,
+         "health_score": h.score, "health_status": h.status, "trend": h.trend,
+         "nps": h.nps, "product_usage": h.product_usage, "adoption": h.adoption}
+        for a, h in rows])
+
+
+@agent_bp.route("/account-churn-context/<int:account_id>")
+@require_agent_token
+def account_churn_context(account_id):
+    from models import Account
+    a = db.session.get(Account, account_id)
+    if not a:
+        return jsonify(error="account not found"), 404
+    return jsonify(core.account_churn_context(a))
+
+
 # --------------------------------------------------------------- actions (write)
 @agent_bp.route("/notes", methods=["POST"])
 @require_agent_token

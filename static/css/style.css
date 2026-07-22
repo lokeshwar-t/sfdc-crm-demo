@@ -178,3 +178,8 @@ a.entity-link:hover { color: var(--brand); }
 .mp-toggle { cursor: pointer; }
 .mp-toggle .mp-caret { transition: transform .2s ease; }
 .mp-toggle.collapsed .mp-caret { transform: rotate(-90deg); }
+
+/* Customer Health KPI filter boxes */
+.kpi-filter { cursor: pointer; transition: transform .12s ease, box-shadow .12s ease; }
+.kpi-filter:hover { transform: translateY(-1px); }
+.kpi-filter.active { outline: 2px solid var(--bs-primary); outline-offset: 1px; }

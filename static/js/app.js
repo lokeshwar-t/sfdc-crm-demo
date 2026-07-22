@@ -748,6 +748,12 @@ document.addEventListener('DOMContentLoaded', () => {
     new DataTable(t, {pageLength: 15, lengthChange: false,
       language: {search: '', searchPlaceholder: 'Filter…'}});
   });
+  // DataTables initialized inside a hidden tab mis-sizes columns — recalc on show.
+  document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(btn => {
+    btn.addEventListener('shown.bs.tab', () => {
+      if (window.DataTable) DataTable.tables({visible: true, api: true}).columns.adjust();
+    });
+  });
   // auto-dismiss flash toasts
   setTimeout(() => document.querySelectorAll('.toast-flash').forEach(el => {
     bootstrap.Alert.getOrCreateInstance(el).close();

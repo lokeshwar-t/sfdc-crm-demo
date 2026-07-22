@@ -111,7 +111,9 @@ def contracts():
 @login_required
 def renewals():
     rows = Renewal.query.order_by(Renewal.renewal_date).all()
-    upcoming = [r for r in rows if r.renewal_date and r.renewal_date >= date.today()]
+    today = date.today()
+    upcoming = [r for r in rows if r.renewal_date and r.renewal_date >= today]
+    past = [r for r in rows if r.renewal_date and r.renewal_date < today][::-1]  # most recent first
     # group next 6 months for calendar strip
     months = []
     for i in range(6):
@@ -120,7 +122,8 @@ def renewals():
         amt = sum(r.amount for r in upcoming if r.renewal_date.month == m and r.renewal_date.year == y)
         cnt = sum(1 for r in upcoming if r.renewal_date.month == m and r.renewal_date.year == y)
         months.append(dict(label=date(y, m, 1).strftime("%b %Y"), amount=amt, count=cnt))
-    return render_template("renewals.html", rows=rows[:300], months=months,
+    return render_template("renewals.html", upcoming_rows=upcoming[:300],
+                           past_rows=past[:300], months=months,
                            rn_windows=current_app.config["RENEWAL_WINDOWS"])
 
 

@@ -6,7 +6,7 @@ from flask import Blueprint, jsonify, request, current_app
 from flask_login import login_required, current_user
 from sqlalchemy import func
 from database import db
-from models import Account, Opportunity, Renewal, CustomerHealth, User, Role, UsageMetric
+from models import Account, Opportunity, Renewal, CustomerHealth, User, Role, UsageMetric, Notification
 import ai_service
 import agent_core as core
 
@@ -271,6 +271,41 @@ def churn_sentinel_status(execution_id):
     if not _refold_configured():
         return jsonify(error="Churn Sentinel workflow is not configured."), 503
     return _status_payload(execution_id)
+
+
+@api_bp.route("/churn-sentinel/notify", methods=["POST"])
+@login_required
+def churn_sentinel_notify():
+    """After a run completes, drop a notification to the current user so the
+    bell reliably lights up regardless of which persona ran it."""
+    data = request.get_json(silent=True) or {}
+    try:
+        count = int(data.get("count", 0))
+    except (TypeError, ValueError):
+        count = 0
+    try:
+        limit = int(data.get("limit", 0))
+    except (TypeError, ValueError):
+        limit = 0
+    msg = (f"Churn Sentinel swept the top {limit} at-risk accounts and filed "
+           f"save-plays for {count}. Review on Customer Health.")
+    n = Notification(user_id=current_user.id, category="Health",
+                     message=msg, link="/customer-success")
+    db.session.add(n)
+    db.session.commit()
+    return jsonify(ok=True, id=n.id)
+
+
+# Lightweight bell feed for polling (current user's recent notifications).
+@api_bp.route("/notifications/summary")
+@login_required
+def notifications_summary():
+    rows = (Notification.query.filter_by(user_id=current_user.id)
+            .order_by(Notification.created_at.desc()).limit(8).all())
+    unread = Notification.query.filter_by(user_id=current_user.id, is_read=False).count()
+    return jsonify(unread=unread, items=[
+        {"message": n.message, "category": n.category,
+         "link": n.link or "#", "is_read": bool(n.is_read)} for n in rows])
 
 
 # ---------------- chart data ----------------

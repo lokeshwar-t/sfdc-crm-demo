@@ -635,9 +635,13 @@ function csPoll(execId, started, finish, box) {
       if (!ok || data.error) { finish(mpError(data)); return; }
       if (data.state === 'success') {
         const ts = Date.now();
+        const n = mpExtractBriefs(data.result).length;
         csSaveRun(data.result, csLimit, ts);
         finish(renderChurnSentinel(data.result, csLimit, ts));
         mpStartRelTimer();
+        // notify the current user so the bell lights up, then refresh it
+        fetch('/api/churn-sentinel/notify', {method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({count: n, limit: csLimit})}).then(() => refreshBell()).catch(() => {});
         return;
       }
       if (data.state === 'error') {
@@ -948,6 +952,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setTimeout(() => document.querySelectorAll('.toast-flash').forEach(el => {
     bootstrap.Alert.getOrCreateInstance(el).close();
   }), 3500);
+  // poll the notification bell so agent write-backs appear without a reload
+  if (document.getElementById('notifDot')) setInterval(refreshBell, 15000);
 });
 
 // Customer Health KPI boxes act as status filters on the health table.
@@ -959,4 +965,26 @@ function csFilterHealth(status, el) {
   // toggle off if the active box is clicked again, else filter to that status
   dt.column(3).search(wasActive ? '' : status).draw();
   if (!wasActive) el.classList.add('active');
+}
+
+// ---------- Notification bell (poll so agent write-backs surface without a reload) ----------
+const NOTIF_ICONS = {Renewal: 'rotate', Contract: 'file-contract', Health: 'heart-pulse',
+  Deal: 'bullseye', Task: 'list-check', Meeting: 'calendar-days', Activity: 'bolt'};
+
+function refreshBell() {
+  const dot = document.getElementById('notifDot');
+  const list = document.getElementById('notifList');
+  if (!dot || !list) return;
+  fetch('/api/notifications/summary').then(r => r.ok ? r.json() : null).then(d => {
+    if (!d) return;
+    if (d.unread > 0) { dot.textContent = d.unread; dot.style.display = ''; }
+    else { dot.textContent = ''; dot.style.display = 'none'; }
+    if (!d.items.length) { list.innerHTML = '<div class="p-3 text-muted small">No notifications</div>'; return; }
+    list.innerHTML = d.items.map(n => {
+      const icon = NOTIF_ICONS[n.category] || 'bell';
+      return `<a href="${n.link || '#'}" class="dropdown-item notif-item ${n.is_read ? '' : 'unread'}">
+        <span class="notif-cat cat-${(n.category || '').toLowerCase()}"><i class="fa-solid fa-${icon}"></i></span>
+        <span class="small">${escapeHtml(n.message)}</span></a>`;
+    }).join('');
+  }).catch(() => {});
 }

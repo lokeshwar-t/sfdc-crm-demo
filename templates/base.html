@@ -101,10 +101,11 @@
         <div class="dropdown">
           <button class="btn btn-light btn-sm position-relative rounded-circle icon-btn" data-bs-toggle="dropdown">
             <i class="fa-regular fa-bell"></i>
-            {% if unread_count %}<span class="notif-dot">{{ unread_count }}</span>{% endif %}
+            <span class="notif-dot" id="notifDot" {% if not unread_count %}style="display:none"{% endif %}>{{ unread_count or '' }}</span>
           </button>
           <div class="dropdown-menu dropdown-menu-end shadow notif-menu p-0">
             <div class="p-3 border-bottom fw-semibold">Notifications</div>
+            <div id="notifList">
             {% for n in nav_notifications %}
             <a href="{{ n.link or '#' }}" class="dropdown-item notif-item {{ 'unread' if not n.is_read }}">
               <span class="notif-cat cat-{{ n.category|lower }}"><i class="fa-solid fa-{{ {'Renewal':'rotate','Contract':'file-contract','Health':'heart-pulse','Deal':'bullseye','Task':'list-check','Meeting':'calendar-days','Activity':'bolt'}.get(n.category,'bell') }}"></i></span>
@@ -113,6 +114,7 @@
             {% else %}
             <div class="p-3 text-muted small">No notifications</div>
             {% endfor %}
+            </div>
             <a href="{{ url_for('mod.notifications') }}" class="dropdown-item text-center small text-primary py-2 border-top">View all</a>
           </div>
         </div>

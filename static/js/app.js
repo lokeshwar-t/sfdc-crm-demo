@@ -293,7 +293,7 @@ function renderMeetingPrep(exec, hours, ts) {
     </div><div class="row g-3">`;
 
   briefs.forEach((item, i) => {
-    const b = item.brief || item;
+    const b = agentUnwrapBrief(item.brief || item);
     const title = item.meeting_title || b.meeting_title || 'Meeting';
     const tps = b.talking_points || [];
     const risks = b.risks || [];
@@ -471,6 +471,18 @@ function rpLikelihoodClass(p) {
   return 'bg-danger-subtle text-danger';
 }
 
+// LLM nodes sometimes return the brief unparsed — as {response:"```json…```"} or
+// a fenced/plain JSON string. Normalize to the structured object either way.
+function agentUnwrapBrief(raw) {
+  let b = raw;
+  if (b && typeof b === 'object' && typeof b.response === 'string') b = b.response;
+  if (typeof b === 'string') {
+    const s = b.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+    try { return JSON.parse(s); } catch (e) { return {situation: b}; }  // fallback: show raw text
+  }
+  return b || {};
+}
+
 function renderRenewalPrep(exec, days, ts) {
   const briefs = mpExtractBriefs(exec);   // same Cobalt envelope as Meeting-Prep
   if (!briefs.length) {
@@ -500,7 +512,7 @@ function renderRenewalPrep(exec, days, ts) {
     </div><div class="row g-3">`;
 
   briefs.forEach((item, i) => {
-    const b = item.brief || item;
+    const b = agentUnwrapBrief(item.brief || item);
     const account = item.account || b.account || 'Account';
     const amount = item.amount != null ? item.amount : b.amount;
     const likelihood = item.likelihood != null ? item.likelihood : b.likelihood;

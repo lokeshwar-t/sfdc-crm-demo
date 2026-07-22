@@ -50,7 +50,7 @@
     <div class="tab-content">
       <div class="tab-pane fade show active" id="tab-upcoming" role="tabpanel">
         <div class="text-muted small mb-2">Renewals coming due — this is what the Renewal Agent briefs on.</div>
-        <table class="table table-hover align-middle datatable" data-page-length="10" data-order-col="1" data-order-dir="asc">
+        <table class="table table-hover align-middle datatable" style="width:100%" data-page-length="10" data-order-col="1" data-order-dir="asc">
           <thead><tr><th>Account</th><th>Renewal Date</th><th>Amount</th><th>Status</th><th>Likelihood</th><th>CSM</th></tr></thead>
           <tbody>
           {% for r in upcoming_rows %}{{ renewal_row(r) }}{% else %}<tr><td colspan="6" class="text-muted small py-3">No upcoming renewals.</td></tr>{% endfor %}
@@ -59,7 +59,7 @@
       </div>
       <div class="tab-pane fade" id="tab-past" role="tabpanel">
         <div class="text-muted small mb-2">Past renewals (renewed or churned) — for reference.</div>
-        <table class="table table-hover align-middle datatable" data-page-length="10" data-order-col="1" data-order-dir="desc">
+        <table class="table table-hover align-middle datatable" style="width:100%" data-page-length="10" data-order-col="1" data-order-dir="desc">
           <thead><tr><th>Account</th><th>Renewal Date</th><th>Amount</th><th>Status</th><th>Likelihood</th><th>CSM</th></tr></thead>
           <tbody>
           {% for r in past_rows %}{{ renewal_row(r) }}{% else %}<tr><td colspan="6" class="text-muted small py-3">No completed renewals.</td></tr>{% endfor %}

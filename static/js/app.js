@@ -747,6 +747,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const _dtInstances = [];
   document.querySelectorAll('table.datatable').forEach(t => {
     const opts = {pageLength: parseInt(t.dataset.pageLength, 10) || 15, lengthChange: false,
+      autoWidth: false,   // let CSS width:100% fill the container (fixes narrow cols in tabs)
       language: {search: '', searchPlaceholder: 'Filter…'}};
     if (t.dataset.orderCol !== undefined) {
       opts.order = [[parseInt(t.dataset.orderCol, 10), t.dataset.orderDir || 'asc']];

@@ -90,7 +90,8 @@ def opportunities():
     stage_totals = {s: db.session.query(func.sum(Opportunity.amount)).filter(Opportunity.stage == s).scalar() or 0
                     for s in by_stage}
     return render_template("opportunities.html", rows=rows[:300], by_stage=by_stage,
-                           stage_totals=stage_totals, view=view, stages=OPEN_STAGES)
+                           stage_totals=stage_totals, view=view, stages=OPEN_STAGES,
+                           pl_limits=current_app.config["PIPELINE_LIMITS"])
 
 
 @mod_bp.route("/activities")

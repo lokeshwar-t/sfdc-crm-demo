@@ -42,9 +42,13 @@ class Config:
     # Briefing agent
     REFOLD_BRIEFING_WORKFLOW_ID = os.environ.get("REFOLD_BRIEFING_WORKFLOW_ID", "6a60e4013284520f752b331c")
     REFOLD_BRIEFING_SLUG = os.environ.get("REFOLD_BRIEFING_SLUG", "Coba-8517")
+    # Pipeline Hygiene agent — set once its Cobalt workflow exists
+    REFOLD_PIPELINE_WORKFLOW_ID = os.environ.get("REFOLD_PIPELINE_WORKFLOW_ID", "")
+    REFOLD_PIPELINE_SLUG = os.environ.get("REFOLD_PIPELINE_SLUG", "")
     REFOLD_CONFIG_ID = os.environ.get("REFOLD_CONFIG_ID", "")                   # optional per-run config
     REFOLD_HTTP_TIMEOUT = int(os.environ.get("REFOLD_HTTP_TIMEOUT", "30"))      # per-request seconds
     MEETING_PREP_WINDOWS = [4, 8, 24, 48]  # selectable time windows (hours)
     RENEWAL_WINDOWS = [15, 30, 60, 90, 180]  # selectable renewal windows (days)
     CHURN_LIMITS = [5, 10, 15, 20]           # selectable # of riskiest accounts to sweep
     BRIEFING_WINDOWS = [1, 7, 14, 30]        # selectable briefing look-back windows (days)
+    PIPELINE_LIMITS = [5, 10, 15, 20]        # selectable # of messiest deals to sweep

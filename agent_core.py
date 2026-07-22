@@ -350,3 +350,66 @@ def briefing_context(days=7):
         "upcoming_meetings_48h": len(meetings),
         "recent_activity_count": acts,
     }
+
+
+def stale_opportunities(limit=10):
+    """Open opps with hygiene problems, worst-first, for Pipeline Hygiene.
+
+    Deterministic flagging only — the LLM decides what to do about them.
+    """
+    today = date.today()
+    opps = (Opportunity.query
+            .filter(Opportunity.stage.notin_(["Closed Won", "Closed Lost"])).all())
+    flagged = []
+    for o in opps:
+        age = (today - o.created_at.date()).days if o.created_at else 0
+        issues = []
+        if not o.next_step:
+            issues.append("No next step set")
+        if o.expected_close and o.expected_close < today:
+            issues.append("Close date is in the past")
+        if not o.amount:
+            issues.append("Missing amount")
+        if o.owner_id is None:
+            issues.append("No owner assigned")
+        if age > 90:
+            issues.append(f"Open {age} days with no close")
+        if (o.ai_score or 0) < 40:
+            issues.append(f"Low AI score ({o.ai_score})")
+        if issues:
+            flagged.append((o, issues, age))
+    flagged.sort(key=lambda t: (-len(t[1]), -t[2]))
+    return flagged[:limit]
+
+
+def opportunity_context(o):
+    """Compact context for a single opportunity (Pipeline Hygiene LLM input)."""
+    acct = o.account
+    h = acct.health if acct else None
+    today = date.today()
+    acts = (Activity.query.filter_by(account_id=acct.id)
+            .order_by(Activity.activity_date.desc()).limit(5).all()) if acct else []
+    return {
+        "opportunity": {
+            "id": o.id, "name": o.name, "stage": o.stage, "amount": o.amount,
+            "probability": o.probability, "ai_score": o.ai_score,
+            "opp_type": o.opp_type, "competitor": o.competitor,
+            "next_step": o.next_step,
+            "expected_close": o.expected_close.isoformat() if o.expected_close else None,
+            "age_days": (today - o.created_at.date()).days if o.created_at else None,
+            "owner": o.owner.name if o.owner else None,
+            "owner_id": o.owner_id,
+        },
+        "account": {
+            "id": acct.id, "name": acct.name, "industry": acct.industry,
+            "segment": acct.segment, "arr": acct.arr,
+            "csm": acct.csm.name if acct.csm else None,
+        } if acct else None,
+        "health": {
+            "score": h.score, "status": h.status, "trend": h.trend,
+        } if h else None,
+        "recent_activities": [
+            {"type": a.activity_type, "subject": a.subject,
+             "date": a.activity_date.isoformat() if a.activity_date else None}
+            for a in acts],
+    }

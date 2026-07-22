@@ -76,4 +76,28 @@
   </div>
 </div>
 {% endif %}
+
+<!-- Pipeline Hygiene agent (Refold workflow trigger) -->
+<div class="card section-card mt-4" id="pipelineHygieneCard">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div>
+        <h6 class="fw-semibold mb-1"><i class="fa-solid fa-robot me-2 text-primary"></i>Pipeline Hygiene</h6>
+        <div class="text-muted small">Sweep the messiest open deals (no next step, past-due close, stuck too long) and file cleanup tasks + owner alerts back into the CRM — powered by the Refold agent.</div>
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <div class="btn-group" role="group" aria-label="Deals to sweep" id="phWindow">
+          {% for n in pl_limits %}
+          <button type="button" class="btn btn-sm btn-outline-primary{{ ' active' if n == 10 }}"
+                  data-limit="{{ n }}" onclick="phSelectWindow(this)">Top {{ n }}</button>
+          {% endfor %}
+        </div>
+        <button type="button" class="btn btn-sm btn-ai" id="phRunBtn" onclick="runPipelineHygiene()">
+          <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Run Pipeline Hygiene
+        </button>
+      </div>
+    </div>
+    <div id="phResult" class="mt-3 d-none"></div>
+  </div>
+</div>
 {% endblock %}

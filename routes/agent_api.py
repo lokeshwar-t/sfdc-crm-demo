@@ -133,6 +133,31 @@ def briefing_context():
     return jsonify(core.briefing_context(days))
 
 
+@agent_bp.route("/stale-opportunities")
+@require_agent_token
+def stale_opportunities():
+    limit = request.args.get("limit", default=10, type=int)
+    rows = core.stale_opportunities(limit)
+    return jsonify(count=len(rows), limit=limit, opportunities=[
+        {"id": o.id, "name": o.name, "stage": o.stage, "amount": o.amount,
+         "ai_score": o.ai_score, "next_step": o.next_step,
+         "expected_close": o.expected_close.isoformat() if o.expected_close else None,
+         "account": o.account.name if o.account else None, "account_id": o.account_id,
+         "owner": o.owner.name if o.owner else None, "owner_id": o.owner_id,
+         "age_days": age, "issues": issues}
+        for o, issues, age in rows])
+
+
+@agent_bp.route("/opportunity-context/<int:opportunity_id>")
+@require_agent_token
+def opportunity_context(opportunity_id):
+    from models import Opportunity
+    o = db.session.get(Opportunity, opportunity_id)
+    if not o:
+        return jsonify(error="opportunity not found"), 404
+    return jsonify(core.opportunity_context(o))
+
+
 # --------------------------------------------------------------- actions (write)
 @agent_bp.route("/notes", methods=["POST"])
 @require_agent_token

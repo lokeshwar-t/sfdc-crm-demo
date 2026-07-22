@@ -904,6 +904,178 @@ function renderBriefing(exec, days, ts) {
   return html;
 }
 
+// ---------- Pipeline Hygiene agent (read → reason → act; writes cleanup tasks back) ----------
+let phLimit = 10;
+const PH_STORE_KEY = 'ph:lastRun';
+let phPollTimer = null;
+
+function phSelectWindow(btn) {
+  phLimit = parseInt(btn.dataset.limit, 10);
+  phSetActiveWindow(phLimit);
+}
+
+function phSetActiveWindow(limit) {
+  document.querySelectorAll('#phWindow .btn').forEach(b =>
+    b.classList.toggle('active', parseInt(b.dataset.limit, 10) === limit));
+}
+
+function phSaveRun(exec, limit, ts) {
+  try { sessionStorage.setItem(PH_STORE_KEY, JSON.stringify({exec: exec, limit: limit, generatedAt: ts})); } catch (e) {}
+}
+
+function phRestore() {
+  let saved = null;
+  try { saved = JSON.parse(sessionStorage.getItem(PH_STORE_KEY) || 'null'); } catch (e) { saved = null; }
+  if (!saved || !saved.exec) return;
+  phLimit = saved.limit || phLimit;
+  phSetActiveWindow(phLimit);
+  const box = document.getElementById('phResult');
+  box.classList.remove('d-none');
+  box.innerHTML = renderPipelineHygiene(saved.exec, phLimit, saved.generatedAt);
+  mpStartRelTimer();
+}
+
+function runPipelineHygiene() {
+  const btn = document.getElementById('phRunBtn');
+  const box = document.getElementById('phResult');
+  const original = btn.innerHTML;
+  const started = Date.now();
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sweeping…';
+  box.classList.remove('d-none');
+  phShowLoader(box, 0);
+
+  const finish = (html) => {
+    if (phPollTimer) { clearTimeout(phPollTimer); phPollTimer = null; }
+    box.innerHTML = html;
+    btn.disabled = false;
+    btn.innerHTML = original;
+  };
+
+  fetch('/api/pipeline-hygiene/run', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({limit: phLimit})
+  }).then(async r => ({ok: r.ok, data: await r.json()}))
+    .then(({ok, data}) => {
+      if (!ok || data.error || !data.execution_id) { finish(mpError(data)); return; }
+      phPoll(data.execution_id, started, finish, box);
+    })
+    .catch(() => finish(mpError({error: 'Could not reach the agent.'})));
+}
+
+function phPoll(execId, started, finish, box) {
+  phShowLoader(box, Math.round((Date.now() - started) / 1000));
+  fetch(`/api/pipeline-hygiene/status/${encodeURIComponent(execId)}`)
+    .then(async r => ({ok: r.ok, data: await r.json()}))
+    .then(({ok, data}) => {
+      if (!ok || data.error) { finish(mpError(data)); return; }
+      if (data.state === 'success') {
+        const ts = Date.now();
+        const n = mpExtractBriefs(data.result).length;
+        phSaveRun(data.result, phLimit, ts);
+        finish(renderPipelineHygiene(data.result, phLimit, ts));
+        mpStartRelTimer();
+        fetch('/api/pipeline-hygiene/notify', {method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({count: n, limit: phLimit})}).then(() => refreshBell()).catch(() => {});
+        return;
+      }
+      if (data.state === 'error') {
+        finish(mpError({error: 'The workflow reported a failure.', detail: _short(data.result)}));
+        return;
+      }
+      if (Date.now() - started > MP_MAX_MS) {
+        finish(mpError({error: 'Timed out waiting for the workflow.',
+                        detail: `Still ${data.status || 'running'} after ${Math.round(MP_MAX_MS / 1000)}s (execution ${execId}).`}));
+        return;
+      }
+      phPollTimer = setTimeout(() => phPoll(execId, started, finish, box), MP_POLL_INTERVAL);
+    })
+    .catch(() => {
+      if (Date.now() - started > MP_MAX_MS) { finish(mpError({error: 'Lost connection while polling the workflow.'})); return; }
+      phPollTimer = setTimeout(() => phPoll(execId, started, finish, box), MP_POLL_INTERVAL);
+    });
+}
+
+function phShowLoader(box, elapsed) {
+  box.innerHTML = `<div class="d-flex align-items-center text-muted small">
+      <span class="spinner-border spinner-border-sm me-2 text-primary"></span>
+      Refold is sweeping the ${phLimit} messiest deals and filing cleanup tasks… <span class="ms-1">(${elapsed}s)</span>
+    </div>`;
+}
+
+function renderPipelineHygiene(exec, limit, ts) {
+  const briefs = mpExtractBriefs(exec);
+  if (!briefs.length) {
+    return `<div class="text-center text-muted py-4">
+        <i class="fa-regular fa-circle-check fa-2x mb-2 d-block text-secondary"></i>
+        <div class="fw-semibold">No pipeline hygiene issues surfaced</div>
+        ${ts ? `<div class="mt-2">${mpGeneratedLabel(ts)}</div>` : ''}
+        <details class="mt-3 text-start"><summary class="small text-secondary" style="cursor:pointer">Raw workflow response</summary>
+          <pre class="small bg-light p-2 rounded mt-2 mb-0" style="white-space:pre-wrap;max-height:240px;overflow:auto">${escapeHtml(JSON.stringify(exec, null, 2))}</pre>
+        </details>
+      </div>`;
+  }
+
+  let html = `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+      <div>
+        <span class="badge bg-primary-subtle text-primary me-2">Top ${limit}</span>
+        <span class="small text-muted">${briefs.length} deal${briefs.length === 1 ? '' : 's'} cleaned up by the agent</span>
+      </div>
+      <div class="d-flex align-items-center flex-wrap gap-3">
+        ${mpGeneratedLabel(ts)}
+        <div class="btn-group btn-group-sm">
+          <button type="button" class="btn btn-outline-secondary" onclick="mpToggleAll(true, '#phResult')"><i class="fa-solid fa-angles-down me-1"></i>Expand all</button>
+          <button type="button" class="btn btn-outline-secondary" onclick="mpToggleAll(false, '#phResult')"><i class="fa-solid fa-angles-up me-1"></i>Collapse all</button>
+        </div>
+      </div>
+    </div><div class="row g-3">`;
+
+  briefs.forEach((item, i) => {
+    const b = agentUnwrapBrief(item.brief || item);
+    const name = item.opportunity || item.name || b.opportunity || 'Opportunity';
+    const account = item.account || b.account;
+    const owner = item.owner || b.owner;
+    const amount = item.amount != null ? item.amount : b.amount;
+    const stage = item.stage || b.stage;
+    const issues = item.issues || b.issues || [];
+    const cleanup = b.recommended_cleanup || b.recommended_play || b.recommended_ask || b.play;
+    const bodyId = `phBody${i}`;
+
+    html += `<div class="col-12">
+      <div class="card section-card">
+        <div class="card-header bg-white border-0 py-2 mp-toggle" role="button" tabindex="0"
+             data-bs-toggle="collapse" data-bs-target="#${bodyId}" aria-expanded="true" aria-controls="${bodyId}">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h6 class="fw-semibold mb-0">
+              <i class="fa-solid fa-chevron-down me-2 mp-caret text-muted small"></i>
+              <i class="fa-solid fa-broom me-2 text-primary"></i>${escapeHtml(name)}
+            </h6>
+            <div class="d-flex gap-2 flex-wrap align-items-center">
+              ${amount != null ? `<span class="badge bg-dark-subtle text-dark border">${rpMoney(amount)}</span>` : ''}
+              ${stage ? `<span class="badge bg-light text-dark border">${escapeHtml(stage)}</span>` : ''}
+              ${account ? `<span class="badge bg-light text-dark border">${escapeHtml(account)}</span>` : ''}
+              ${owner ? `<span class="badge bg-light text-dark border"><i class="fa-regular fa-user me-1"></i>${escapeHtml(owner)}</span>` : ''}
+            </div>
+          </div>
+        </div>
+        <div id="${bodyId}" class="collapse show mp-collapse">
+          <div class="card-body pt-2">
+            ${b.situation ? `<p class="small text-muted mb-2">${escapeHtml(b.situation)}</p>` : ''}
+            ${issues.length ? `<div class="mb-2"><div class="fw-semibold small mb-1"><i class="fa-solid fa-triangle-exclamation me-1 text-warning"></i>Hygiene issues</div>
+              <div class="d-flex flex-wrap">${issues.map(x => `<span class="badge bg-warning-subtle text-warning border border-warning-subtle me-1 mb-1">${escapeHtml(String(x))}</span>`).join('')}</div></div>` : ''}
+            ${cleanup ? `<div class="alert alert-primary py-2 px-3 small mt-2 mb-0"><i class="fa-solid fa-broom me-1"></i><strong>Recommended cleanup:</strong> ${escapeHtml(cleanup)}</div>` : ''}
+            ${csActionsTaken(item, b)}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  html += '</div>';
+  return html;
+}
+
 // Restore the last briefing on load so tab navigation doesn't force a re-run.
 function mpInit() {
   if (document.getElementById('mpResult')) {
@@ -918,6 +1090,9 @@ function mpInit() {
   }
   if (document.getElementById('bfResult')) {
     bfRestore();
+  }
+  if (document.getElementById('phResult')) {
+    phRestore();
   }
 }
 if (document.readyState === 'loading') {

@@ -337,6 +337,66 @@ def briefing_status(execution_id):
     return _status_payload(execution_id)
 
 
+@api_bp.route("/pipeline-hygiene/run", methods=["POST"])
+@login_required
+def pipeline_hygiene_run():
+    data = request.get_json(silent=True) or {}
+    try:
+        limit = int(data.get("limit", 10))
+    except (TypeError, ValueError):
+        limit = 10
+    if limit not in current_app.config["PIPELINE_LIMITS"]:
+        return jsonify(error=f"limit must be one of "
+                             f"{current_app.config['PIPELINE_LIMITS']}"), 400
+    if not _refold_configured():
+        return jsonify(error="Pipeline Hygiene workflow is not configured.",
+                       hint="Set REFOLD_API_KEY and REFOLD_LINKED_ACCOUNT_ID."), 503
+    c = current_app.config
+    if not c.get("REFOLD_PIPELINE_WORKFLOW_ID"):
+        return jsonify(error="Pipeline Hygiene workflow is not configured.",
+                       hint="Set REFOLD_PIPELINE_WORKFLOW_ID to the Cobalt workflow id."), 503
+    ok, code, resp = _start_workflow(c["REFOLD_PIPELINE_WORKFLOW_ID"],
+                                     c.get("REFOLD_PIPELINE_SLUG"),
+                                     {"limit": str(limit)})
+    if not ok:
+        return jsonify(error="Could not start the Pipeline Hygiene workflow.",
+                       detail=_short(resp), status=code), 502
+    exec_id = _extract_execution_id(resp)
+    if not exec_id:
+        return jsonify(error="Workflow started but no execution id was returned.",
+                       detail=_short(resp)), 502
+    return jsonify(ok=True, execution_id=exec_id, window_limit=limit)
+
+
+@api_bp.route("/pipeline-hygiene/status/<execution_id>")
+@login_required
+def pipeline_hygiene_status(execution_id):
+    if not _refold_configured():
+        return jsonify(error="Pipeline Hygiene workflow is not configured."), 503
+    return _status_payload(execution_id)
+
+
+@api_bp.route("/pipeline-hygiene/notify", methods=["POST"])
+@login_required
+def pipeline_hygiene_notify():
+    data = request.get_json(silent=True) or {}
+    try:
+        count = int(data.get("count", 0))
+    except (TypeError, ValueError):
+        count = 0
+    try:
+        limit = int(data.get("limit", 0))
+    except (TypeError, ValueError):
+        limit = 0
+    msg = (f"Pipeline Hygiene reviewed the top {limit} messiest deals and filed "
+           f"cleanup tasks for {count}. Review on Pipeline.")
+    n = Notification(user_id=current_user.id, category="Deal",
+                     message=msg, link="/opportunities")
+    db.session.add(n)
+    db.session.commit()
+    return jsonify(ok=True, id=n.id)
+
+
 @api_bp.route("/briefing/notify", methods=["POST"])
 @login_required
 def briefing_notify():

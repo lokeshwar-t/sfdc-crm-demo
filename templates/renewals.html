@@ -10,30 +10,6 @@
   {{ ai_button("Summarize renewals", "Summarize upcoming renewals") }}
 </div>
 
-<!-- Renewal agent (Refold workflow trigger) -->
-<div class="card section-card mb-4" id="renewalPrepCard">
-  <div class="card-body">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-      <div>
-        <h6 class="fw-semibold mb-1"><i class="fa-solid fa-robot me-2 text-primary"></i>Renewal Agent</h6>
-        <div class="text-muted small">Brief me on renewals coming due — risks, health, and the recommended play — powered by the Refold agent.</div>
-      </div>
-      <div class="d-flex flex-wrap align-items-center gap-2">
-        <div class="btn-group" role="group" aria-label="Renewal window" id="rpWindow">
-          {% for w in rn_windows %}
-          <button type="button" class="btn btn-sm btn-outline-primary{{ ' active' if w == 90 }}"
-                  data-days="{{ w }}" onclick="rpSelectWindow(this)">{{ w }}d</button>
-          {% endfor %}
-        </div>
-        <button type="button" class="btn btn-sm btn-ai" id="rpRunBtn" onclick="runRenewalPrep()">
-          <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Run Renewal Prep
-        </button>
-      </div>
-    </div>
-    <div id="rpResult" class="mt-3 d-none"></div>
-  </div>
-</div>
-
 <div class="calendar-strip mb-4">
   {% for m in months %}
   <div class="cal-month">
@@ -74,7 +50,7 @@
     <div class="tab-content">
       <div class="tab-pane fade show active" id="tab-upcoming" role="tabpanel">
         <div class="text-muted small mb-2">Renewals coming due — this is what the Renewal Agent briefs on.</div>
-        <table class="table table-hover align-middle datatable">
+        <table class="table table-hover align-middle datatable" data-page-length="10" data-order-col="1" data-order-dir="asc">
           <thead><tr><th>Account</th><th>Renewal Date</th><th>Amount</th><th>Status</th><th>Likelihood</th><th>CSM</th></tr></thead>
           <tbody>
           {% for r in upcoming_rows %}{{ renewal_row(r) }}{% else %}<tr><td colspan="6" class="text-muted small py-3">No upcoming renewals.</td></tr>{% endfor %}
@@ -83,7 +59,7 @@
       </div>
       <div class="tab-pane fade" id="tab-past" role="tabpanel">
         <div class="text-muted small mb-2">Past renewals (renewed or churned) — for reference.</div>
-        <table class="table table-hover align-middle datatable">
+        <table class="table table-hover align-middle datatable" data-page-length="10" data-order-col="1" data-order-dir="desc">
           <thead><tr><th>Account</th><th>Renewal Date</th><th>Amount</th><th>Status</th><th>Likelihood</th><th>CSM</th></tr></thead>
           <tbody>
           {% for r in past_rows %}{{ renewal_row(r) }}{% else %}<tr><td colspan="6" class="text-muted small py-3">No completed renewals.</td></tr>{% endfor %}
@@ -91,6 +67,30 @@
         </table>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- Renewal agent (Refold workflow trigger) -->
+<div class="card section-card mt-4" id="renewalPrepCard">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div>
+        <h6 class="fw-semibold mb-1"><i class="fa-solid fa-robot me-2 text-primary"></i>Renewal Agent</h6>
+        <div class="text-muted small">Brief me on renewals coming due — risks, health, and the recommended play — powered by the Refold agent.</div>
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <div class="btn-group" role="group" aria-label="Renewal window" id="rpWindow">
+          {% for w in rn_windows %}
+          <button type="button" class="btn btn-sm btn-outline-primary{{ ' active' if w == 90 }}"
+                  data-days="{{ w }}" onclick="rpSelectWindow(this)">{{ w }}d</button>
+          {% endfor %}
+        </div>
+        <button type="button" class="btn btn-sm btn-ai" id="rpRunBtn" onclick="runRenewalPrep()">
+          <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Run Renewal Prep
+        </button>
+      </div>
+    </div>
+    <div id="rpResult" class="mt-3 d-none"></div>
   </div>
 </div>
 {% endblock %}

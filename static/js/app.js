@@ -744,15 +744,18 @@ function showToast(msg, type) {
 
 // ---------- DataTables ----------
 document.addEventListener('DOMContentLoaded', () => {
+  const _dtInstances = [];
   document.querySelectorAll('table.datatable').forEach(t => {
-    new DataTable(t, {pageLength: 15, lengthChange: false,
-      language: {search: '', searchPlaceholder: 'Filter…'}});
+    const opts = {pageLength: parseInt(t.dataset.pageLength, 10) || 15, lengthChange: false,
+      language: {search: '', searchPlaceholder: 'Filter…'}};
+    if (t.dataset.orderCol !== undefined) {
+      opts.order = [[parseInt(t.dataset.orderCol, 10), t.dataset.orderDir || 'asc']];
+    }
+    _dtInstances.push(new DataTable(t, opts));
   });
   // DataTables initialized inside a hidden tab mis-sizes columns — recalc on show.
   document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(btn => {
-    btn.addEventListener('shown.bs.tab', () => {
-      if (window.DataTable) DataTable.tables({visible: true, api: true}).columns.adjust();
-    });
+    btn.addEventListener('shown.bs.tab', () => _dtInstances.forEach(dt => dt.columns.adjust()));
   });
   // auto-dismiss flash toasts
   setTimeout(() => document.querySelectorAll('.toast-flash').forEach(el => {

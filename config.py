@@ -39,4 +39,4 @@ class Config:
     REFOLD_CONFIG_ID = os.environ.get("REFOLD_CONFIG_ID", "")                   # optional per-run config
     REFOLD_HTTP_TIMEOUT = int(os.environ.get("REFOLD_HTTP_TIMEOUT", "30"))      # per-request seconds
     MEETING_PREP_WINDOWS = [4, 8, 24, 48]  # selectable time windows (hours)
-    RENEWAL_WINDOWS = [30, 60, 90, 180]    # selectable renewal windows (days)
+    RENEWAL_WINDOWS = [15, 30, 60, 90, 180]  # selectable renewal windows (days)

@@ -45,9 +45,9 @@ class Config:
     # Pipeline Hygiene agent
     REFOLD_PIPELINE_WORKFLOW_ID = os.environ.get("REFOLD_PIPELINE_WORKFLOW_ID", "6a61064a3284520f752f06b2")
     REFOLD_PIPELINE_SLUG = os.environ.get("REFOLD_PIPELINE_SLUG", "Coba-8517")
-    # Forecast agent — set once its Cobalt workflow exists
-    REFOLD_FORECAST_WORKFLOW_ID = os.environ.get("REFOLD_FORECAST_WORKFLOW_ID", "")
-    REFOLD_FORECAST_SLUG = os.environ.get("REFOLD_FORECAST_SLUG", "")
+    # Forecast agent
+    REFOLD_FORECAST_WORKFLOW_ID = os.environ.get("REFOLD_FORECAST_WORKFLOW_ID", "6a610c2e3284520f7530adc0")
+    REFOLD_FORECAST_SLUG = os.environ.get("REFOLD_FORECAST_SLUG", "Coba-8517")
     REFOLD_CONFIG_ID = os.environ.get("REFOLD_CONFIG_ID", "")                   # optional per-run config
     REFOLD_HTTP_TIMEOUT = int(os.environ.get("REFOLD_HTTP_TIMEOUT", "30"))      # per-request seconds
     MEETING_PREP_WINDOWS = [4, 8, 24, 48]  # selectable time windows (hours)

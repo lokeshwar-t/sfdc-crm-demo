@@ -301,3 +301,52 @@ def renewal_context(r):
              "sent_at": e.sent_at.isoformat() if e.sent_at else None} for e in emails],
         "open_tasks": [{"title": t.title, "priority": t.priority} for t in tasks],
     }
+
+
+def briefing_context(days=7):
+    """Business-wide snapshot Refold's Briefing LLM turns into an exec summary.
+
+    Pure assembly across entities — deterministic, no intelligence.
+    """
+    from models import CustomerHealth
+    today = date.today()
+    since = datetime.utcnow() - timedelta(days=days)
+
+    wins = (Opportunity.query
+            .filter(Opportunity.stage == "Closed Won",
+                    Opportunity.closed_at >= today - timedelta(days=days))
+            .order_by(Opportunity.amount.desc()).limit(10).all())
+    at_risk = (db.session.query(Account, CustomerHealth)
+               .join(CustomerHealth, CustomerHealth.account_id == Account.id)
+               .filter(db.or_(CustomerHealth.status == "Red", CustomerHealth.trend == "down"))
+               .order_by(CustomerHealth.score.asc()).limit(8).all())
+    renewals = upcoming_renewals(90)
+    open_opps = (Opportunity.query
+                 .filter(Opportunity.stage.notin_(["Closed Won", "Closed Lost"])).all())
+    top_open = sorted(open_opps, key=lambda o: -(o.amount or 0))[:5]
+    meetings = upcoming_meetings(48)
+    acts = Activity.query.filter(Activity.activity_date >= since).count()
+
+    return {
+        "period_days": days,
+        "wins": [
+            {"name": o.name, "amount": o.amount,
+             "account": o.account.name if o.account else None,
+             "closed_at": o.closed_at.isoformat() if o.closed_at else None} for o in wins],
+        "at_risk_accounts": [
+            {"account": a.name, "arr": a.arr, "score": h.score,
+             "status": h.status, "trend": h.trend} for a, h in at_risk],
+        "renewals_next_90d": {
+            "count": len(renewals),
+            "amount": sum(r.amount or 0 for r in renewals),
+            "top": [{"account": r.account.name if r.account else None, "amount": r.amount,
+                     "date": r.renewal_date.isoformat() if r.renewal_date else None,
+                     "likelihood": r.likelihood} for r in renewals[:5]]},
+        "pipeline": {
+            "open_count": len(open_opps),
+            "open_value": sum(o.amount or 0 for o in open_opps),
+            "top": [{"name": o.name, "amount": o.amount, "stage": o.stage,
+                     "account": o.account.name if o.account else None} for o in top_open]},
+        "upcoming_meetings_48h": len(meetings),
+        "recent_activity_count": acts,
+    }

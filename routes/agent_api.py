@@ -126,6 +126,13 @@ def account_churn_context(account_id):
     return jsonify(core.account_churn_context(a))
 
 
+@agent_bp.route("/briefing-context")
+@require_agent_token
+def briefing_context():
+    days = request.args.get("days", default=7, type=int)
+    return jsonify(core.briefing_context(days))
+
+
 # --------------------------------------------------------------- actions (write)
 @agent_bp.route("/notes", methods=["POST"])
 @require_agent_token

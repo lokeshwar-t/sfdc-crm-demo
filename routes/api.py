@@ -296,6 +296,58 @@ def churn_sentinel_notify():
     return jsonify(ok=True, id=n.id)
 
 
+@api_bp.route("/briefing/run", methods=["POST"])
+@login_required
+def briefing_run():
+    data = request.get_json(silent=True) or {}
+    try:
+        days = int(data.get("days", 7))
+    except (TypeError, ValueError):
+        days = 7
+    if days not in current_app.config["BRIEFING_WINDOWS"]:
+        return jsonify(error=f"days must be one of "
+                             f"{current_app.config['BRIEFING_WINDOWS']}"), 400
+    if not _refold_configured():
+        return jsonify(error="Briefing workflow is not configured.",
+                       hint="Set REFOLD_API_KEY and REFOLD_LINKED_ACCOUNT_ID."), 503
+    c = current_app.config
+    if not c.get("REFOLD_BRIEFING_WORKFLOW_ID"):
+        return jsonify(error="Briefing workflow is not configured.",
+                       hint="Set REFOLD_BRIEFING_WORKFLOW_ID to the Cobalt workflow id."), 503
+    ok, code, resp = _start_workflow(c["REFOLD_BRIEFING_WORKFLOW_ID"],
+                                     c.get("REFOLD_BRIEFING_SLUG"),
+                                     {"days": str(days)})
+    if not ok:
+        return jsonify(error="Could not start the Briefing workflow.",
+                       detail=_short(resp), status=code), 502
+    exec_id = _extract_execution_id(resp)
+    if not exec_id:
+        return jsonify(error="Workflow started but no execution id was returned.",
+                       detail=_short(resp)), 502
+    return jsonify(ok=True, execution_id=exec_id, window_days=days)
+
+
+@api_bp.route("/briefing/status/<execution_id>")
+@login_required
+def briefing_status(execution_id):
+    if not _refold_configured():
+        return jsonify(error="Briefing workflow is not configured."), 503
+    return _status_payload(execution_id)
+
+
+@api_bp.route("/briefing/notify", methods=["POST"])
+@login_required
+def briefing_notify():
+    """Drop the finished briefing headline to the current user's bell."""
+    data = request.get_json(silent=True) or {}
+    headline = (data.get("headline") or "Your executive briefing is ready.")[:180]
+    n = Notification(user_id=current_user.id, category="Activity",
+                     message=f"Briefing: {headline}", link="/briefing")
+    db.session.add(n)
+    db.session.commit()
+    return jsonify(ok=True, id=n.id)
+
+
 # Lightweight bell feed for polling (current user's recent notifications).
 @api_bp.route("/notifications/summary")
 @login_required

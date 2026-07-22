@@ -670,7 +670,11 @@ function csShowLoader(box, elapsed) {
 
 // Render the actions the agent wrote back (notifications / tasks) as green pills.
 function csActionsTaken(item, b) {
-  const acts = item.actions_taken || item.actions || b.actions_taken || b.actions || [];
+  return agentActionsTaken(item.actions_taken || item.actions || b.actions_taken || b.actions || []);
+}
+
+function agentActionsTaken(acts) {
+  acts = acts || [];
   if (!acts.length) return '';
   const pill = (a) => {
     const label = typeof a === 'string' ? a
@@ -750,6 +754,156 @@ function renderChurnSentinel(exec, limit, ts) {
   return html;
 }
 
+// ---------- Briefing agent (business-wide exec summary; writes to the inbox) ----------
+let bfDays = 7;
+const BF_STORE_KEY = 'bf:lastRun';
+let bfPollTimer = null;
+
+function bfSelectWindow(btn) {
+  bfDays = parseInt(btn.dataset.days, 10);
+  bfSetActiveWindow(bfDays);
+}
+
+function bfSetActiveWindow(days) {
+  document.querySelectorAll('#bfWindow .btn').forEach(b =>
+    b.classList.toggle('active', parseInt(b.dataset.days, 10) === days));
+}
+
+function bfSaveRun(exec, days, ts) {
+  try { sessionStorage.setItem(BF_STORE_KEY, JSON.stringify({exec: exec, days: days, generatedAt: ts})); } catch (e) {}
+}
+
+function bfRestore() {
+  let saved = null;
+  try { saved = JSON.parse(sessionStorage.getItem(BF_STORE_KEY) || 'null'); } catch (e) { saved = null; }
+  if (!saved || !saved.exec) return;
+  bfDays = saved.days || bfDays;
+  bfSetActiveWindow(bfDays);
+  const box = document.getElementById('bfResult');
+  box.classList.remove('d-none');
+  box.innerHTML = renderBriefing(saved.exec, bfDays, saved.generatedAt);
+  mpStartRelTimer();
+}
+
+function runBriefing() {
+  const btn = document.getElementById('bfRunBtn');
+  const box = document.getElementById('bfResult');
+  const original = btn.innerHTML;
+  const started = Date.now();
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Compiling…';
+  box.classList.remove('d-none');
+  bfShowLoader(box, 0);
+
+  const finish = (html) => {
+    if (bfPollTimer) { clearTimeout(bfPollTimer); bfPollTimer = null; }
+    box.innerHTML = html;
+    btn.disabled = false;
+    btn.innerHTML = original;
+  };
+
+  fetch('/api/briefing/run', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({days: bfDays})
+  }).then(async r => ({ok: r.ok, data: await r.json()}))
+    .then(({ok, data}) => {
+      if (!ok || data.error || !data.execution_id) { finish(mpError(data)); return; }
+      bfPoll(data.execution_id, started, finish, box);
+    })
+    .catch(() => finish(mpError({error: 'Could not reach the agent.'})));
+}
+
+function bfPoll(execId, started, finish, box) {
+  bfShowLoader(box, Math.round((Date.now() - started) / 1000));
+  fetch(`/api/briefing/status/${encodeURIComponent(execId)}`)
+    .then(async r => ({ok: r.ok, data: await r.json()}))
+    .then(({ok, data}) => {
+      if (!ok || data.error) { finish(mpError(data)); return; }
+      if (data.state === 'success') {
+        const ts = Date.now();
+        bfSaveRun(data.result, bfDays, ts);
+        finish(renderBriefing(data.result, bfDays, ts));
+        mpStartRelTimer();
+        const bf = bfExtractBriefing(data.result);
+        fetch('/api/briefing/notify', {method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({headline: bf && bf.headline ? bf.headline : ''})}).then(() => refreshBell()).catch(() => {});
+        return;
+      }
+      if (data.state === 'error') {
+        finish(mpError({error: 'The workflow reported a failure.', detail: _short(data.result)}));
+        return;
+      }
+      if (Date.now() - started > MP_MAX_MS) {
+        finish(mpError({error: 'Timed out waiting for the workflow.',
+                        detail: `Still ${data.status || 'running'} after ${Math.round(MP_MAX_MS / 1000)}s (execution ${execId}).`}));
+        return;
+      }
+      bfPollTimer = setTimeout(() => bfPoll(execId, started, finish, box), MP_POLL_INTERVAL);
+    })
+    .catch(() => {
+      if (Date.now() - started > MP_MAX_MS) { finish(mpError({error: 'Lost connection while polling the workflow.'})); return; }
+      bfPollTimer = setTimeout(() => bfPoll(execId, started, finish, box), MP_POLL_INTERVAL);
+    });
+}
+
+function bfShowLoader(box, elapsed) {
+  box.innerHTML = `<div class="d-flex align-items-center text-muted small">
+      <span class="spinner-border spinner-border-sm me-2 text-primary"></span>
+      Refold is compiling your executive briefing (last ${bfDays} days)… <span class="ms-1">(${elapsed}s)</span>
+    </div>`;
+}
+
+// Pull the single briefing object out of the Cobalt envelope.
+function bfExtractBriefing(exec) {
+  if (!exec || typeof exec !== 'object') return null;
+  const bodies = [];
+  if (Array.isArray(exec.nodes)) exec.nodes.forEach(n => { if (n && n.latest_output) bodies.push(n.latest_output.body); });
+  bodies.push(exec.body, exec.result, exec.output, exec);
+  for (const body of bodies) {
+    if (!body) continue;
+    const cand = agentUnwrapBrief(body.briefing || body.brief || body);
+    if (cand && (cand.headline || cand.summary || cand.sections)) return cand;
+  }
+  return null;
+}
+
+function renderBriefing(exec, days, ts) {
+  const bf = bfExtractBriefing(exec);
+  if (!bf) {
+    return `<div class="small text-muted mb-2">The workflow finished but returned no briefing.</div>
+      <pre class="small bg-light p-2 rounded mb-0" style="white-space:pre-wrap;max-height:240px;overflow:auto">${escapeHtml(JSON.stringify(exec, null, 2))}</pre>`;
+  }
+  const sections = bf.sections || [];
+  const recommended = bf.recommended_actions || [];
+
+  let html = `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+      <span class="badge bg-primary-subtle text-primary">Last ${days}d</span>
+      ${mpGeneratedLabel(ts)}
+    </div>`;
+  if (bf.headline) html += `<h5 class="fw-semibold mb-1">${escapeHtml(bf.headline)}</h5>`;
+  if (bf.summary) html += `<p class="text-muted small mb-3">${escapeHtml(bf.summary)}</p>`;
+
+  if (sections.length) {
+    html += '<div class="row g-3">';
+    sections.forEach(s => {
+      const items = s.items || s.points || [];
+      html += `<div class="col-md-6"><div class="card section-card h-100"><div class="card-body py-2">
+          <div class="fw-semibold small mb-1"><i class="fa-solid fa-angle-right me-1 text-primary"></i>${escapeHtml(s.title || 'Section')}</div>
+          ${items.length ? mpList(items) : '<div class="text-muted small mb-0">—</div>'}
+        </div></div></div>`;
+    });
+    html += '</div>';
+  }
+
+  if (recommended.length) {
+    html += `<div class="alert alert-primary py-2 px-3 small mt-3 mb-0">
+        <div class="fw-semibold mb-1"><i class="fa-solid fa-list-check me-1"></i>Recommended actions</div>${mpList(recommended)}</div>`;
+  }
+  html += agentActionsTaken(bf.actions_taken || []);
+  return html;
+}
+
 // Restore the last briefing on load so tab navigation doesn't force a re-run.
 function mpInit() {
   if (document.getElementById('mpResult')) {
@@ -761,6 +915,9 @@ function mpInit() {
   }
   if (document.getElementById('csResult')) {
     csRestore();
+  }
+  if (document.getElementById('bfResult')) {
+    bfRestore();
   }
 }
 if (document.readyState === 'loading') {

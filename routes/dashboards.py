@@ -194,7 +194,8 @@ def briefing():
         .order_by(Activity.activity_date.desc()).limit(10).all()
     return render_template("briefing.html", k=k, new_won=new_won, recent_meetings=recent_meetings,
                            health_drops=health_drops, renewals_30=renewals_30, recent_activity=recent_activity,
-                           mp_windows=current_app.config["MEETING_PREP_WINDOWS"])
+                           mp_windows=current_app.config["MEETING_PREP_WINDOWS"],
+                           bf_windows=current_app.config["BRIEFING_WINDOWS"])
 
 
 @dash_bp.route("/scenarios")

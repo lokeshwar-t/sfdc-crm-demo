@@ -36,9 +36,9 @@ class Config:
     # Renewal agent
     REFOLD_RENEWAL_WORKFLOW_ID = os.environ.get("REFOLD_RENEWAL_WORKFLOW_ID", "6a60aa5b3284520f75231770")
     REFOLD_RENEWAL_SLUG = os.environ.get("REFOLD_RENEWAL_SLUG", "Coba-8517")
-    # Churn Sentinel agent — set once its Cobalt workflow exists
-    REFOLD_CHURN_WORKFLOW_ID = os.environ.get("REFOLD_CHURN_WORKFLOW_ID", "")
-    REFOLD_CHURN_SLUG = os.environ.get("REFOLD_CHURN_SLUG", "")
+    # Churn Sentinel agent
+    REFOLD_CHURN_WORKFLOW_ID = os.environ.get("REFOLD_CHURN_WORKFLOW_ID", "6a60c26a3284520f75282851")
+    REFOLD_CHURN_SLUG = os.environ.get("REFOLD_CHURN_SLUG", "Coba-8517")
     REFOLD_CONFIG_ID = os.environ.get("REFOLD_CONFIG_ID", "")                   # optional per-run config
     REFOLD_HTTP_TIMEOUT = int(os.environ.get("REFOLD_HTTP_TIMEOUT", "30"))      # per-request seconds
     MEETING_PREP_WINDOWS = [4, 8, 24, 48]  # selectable time windows (hours)

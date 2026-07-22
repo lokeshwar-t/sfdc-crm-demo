@@ -10,6 +10,30 @@
   {{ ai_button("Explain dashboard", "Summarize the business") }}
 </div>
 
+<!-- Forecast agent (Refold workflow trigger) -->
+<div class="card section-card mb-4" id="forecastCard">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div>
+        <h6 class="fw-semibold mb-1"><i class="fa-solid fa-robot me-2 text-primary"></i>Forecast Agent</h6>
+        <div class="text-muted small">Weighted pipeline + renewal forecast with an AI call, confidence and risks — the figures are computed by the CRM, the agent narrates them.</div>
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <div class="btn-group" role="group" aria-label="Forecast horizon" id="fcWindow">
+          {% for d in fc_windows %}
+          <button type="button" class="btn btn-sm btn-outline-primary{{ ' active' if d == 90 }}"
+                  data-days="{{ d }}" onclick="fcSelectWindow(this)">{{ d }}d</button>
+          {% endfor %}
+        </div>
+        <button type="button" class="btn btn-sm btn-ai" id="fcRunBtn" onclick="runForecast()">
+          <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Run Forecast
+        </button>
+      </div>
+    </div>
+    <div id="fcResult" class="mt-3 d-none"></div>
+  </div>
+</div>
+
 <div class="row g-3">
   <div class="col-lg-8">
     <div class="card section-card">

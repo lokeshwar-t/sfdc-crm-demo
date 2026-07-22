@@ -413,3 +413,65 @@ def opportunity_context(o):
              "date": a.activity_date.isoformat() if a.activity_date else None}
             for a in acts],
     }
+
+
+def forecast_context(days=90):
+    """Deterministic pipeline + renewal forecast math for the Forecast agent.
+
+    The CRM computes every number here; Refold's LLM only narrates them, so
+    the figures the user sees are always exact.
+    """
+    today = date.today()
+    end = today + timedelta(days=days)
+    open_opps = (Opportunity.query
+                 .filter(Opportunity.stage.notin_(["Closed Won", "Closed Lost"])).all())
+    in_window = [o for o in open_opps if o.expected_close and o.expected_close <= end]
+
+    def amt(o):
+        return o.amount or 0
+
+    def wtd(o):
+        return (o.amount or 0) * (o.probability or 0) / 100.0
+
+    gross = sum(amt(o) for o in in_window)
+    weighted = sum(wtd(o) for o in in_window)
+    commit = sum(amt(o) for o in in_window
+                 if (o.probability or 0) >= 70 or o.stage == "Negotiation")
+    slipping = [o for o in open_opps if o.expected_close and o.expected_close < today]
+
+    by_stage = {}
+    for o in in_window:
+        s = by_stage.setdefault(o.stage, {"count": 0, "amount": 0.0, "weighted": 0.0})
+        s["count"] += 1
+        s["amount"] += amt(o)
+        s["weighted"] += wtd(o)
+
+    top = sorted(in_window, key=lambda o: -amt(o))[:5]
+    renewals = upcoming_renewals(days)
+    ren_amt = sum(r.amount or 0 for r in renewals)
+    ren_wtd = sum((r.amount or 0) * (r.likelihood or 0) / 100.0 for r in renewals)
+
+    return {
+        "period_days": days,
+        "as_of": today.isoformat(),
+        "pipeline": {
+            "open_in_window": len(in_window),
+            "gross": round(gross), "weighted": round(weighted),
+            "commit": round(commit), "best_case": round(gross)},
+        "by_stage": [
+            {"stage": k, "count": v["count"], "amount": round(v["amount"]),
+             "weighted": round(v["weighted"])} for k, v in by_stage.items()],
+        "top_deals": [
+            {"name": o.name, "account": o.account.name if o.account else None,
+             "amount": o.amount, "stage": o.stage, "probability": o.probability,
+             "ai_score": o.ai_score,
+             "expected_close": o.expected_close.isoformat() if o.expected_close else None}
+            for o in top],
+        "slipping": [
+            {"name": o.name, "amount": o.amount,
+             "expected_close": o.expected_close.isoformat() if o.expected_close else None}
+            for o in slipping[:8]],
+        "renewals": {"count": len(renewals), "amount": round(ren_amt),
+                     "weighted": round(ren_wtd)},
+        "total_weighted_forecast": round(weighted + ren_wtd),
+    }

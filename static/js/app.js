@@ -1076,6 +1076,179 @@ function renderPipelineHygiene(exec, limit, ts) {
   return html;
 }
 
+// ---------- Forecast agent (CRM computes the numbers; the agent narrates) ----------
+let fcDays = 90;
+const FC_STORE_KEY = 'fc:lastRun';
+let fcPollTimer = null;
+
+function fcSelectWindow(btn) {
+  fcDays = parseInt(btn.dataset.days, 10);
+  fcSetActiveWindow(fcDays);
+}
+
+function fcSetActiveWindow(days) {
+  document.querySelectorAll('#fcWindow .btn').forEach(b =>
+    b.classList.toggle('active', parseInt(b.dataset.days, 10) === days));
+}
+
+function fcSaveRun(exec, days, ts) {
+  try { sessionStorage.setItem(FC_STORE_KEY, JSON.stringify({exec: exec, days: days, generatedAt: ts})); } catch (e) {}
+}
+
+function fcRestore() {
+  let saved = null;
+  try { saved = JSON.parse(sessionStorage.getItem(FC_STORE_KEY) || 'null'); } catch (e) { saved = null; }
+  if (!saved || !saved.exec) return;
+  fcDays = saved.days || fcDays;
+  fcSetActiveWindow(fcDays);
+  const box = document.getElementById('fcResult');
+  box.classList.remove('d-none');
+  box.innerHTML = renderForecast(saved.exec, fcDays, saved.generatedAt);
+  mpStartRelTimer();
+}
+
+function runForecast() {
+  const btn = document.getElementById('fcRunBtn');
+  const box = document.getElementById('fcResult');
+  const original = btn.innerHTML;
+  const started = Date.now();
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Forecasting…';
+  box.classList.remove('d-none');
+  fcShowLoader(box, 0);
+
+  const finish = (html) => {
+    if (fcPollTimer) { clearTimeout(fcPollTimer); fcPollTimer = null; }
+    box.innerHTML = html;
+    btn.disabled = false;
+    btn.innerHTML = original;
+  };
+
+  fetch('/api/forecast/run', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({days: fcDays})
+  }).then(async r => ({ok: r.ok, data: await r.json()}))
+    .then(({ok, data}) => {
+      if (!ok || data.error || !data.execution_id) { finish(mpError(data)); return; }
+      fcPoll(data.execution_id, started, finish, box);
+    })
+    .catch(() => finish(mpError({error: 'Could not reach the agent.'})));
+}
+
+function fcPoll(execId, started, finish, box) {
+  fcShowLoader(box, Math.round((Date.now() - started) / 1000));
+  fetch(`/api/forecast/status/${encodeURIComponent(execId)}`)
+    .then(async r => ({ok: r.ok, data: await r.json()}))
+    .then(({ok, data}) => {
+      if (!ok || data.error) { finish(mpError(data)); return; }
+      if (data.state === 'success') {
+        const ts = Date.now();
+        fcSaveRun(data.result, fcDays, ts);
+        finish(renderForecast(data.result, fcDays, ts));
+        mpStartRelTimer();
+        const fc = fcExtractForecast(data.result);
+        fetch('/api/forecast/notify', {method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({call: fc && fc.call ? fc.call : ''})}).then(() => refreshBell()).catch(() => {});
+        return;
+      }
+      if (data.state === 'error') {
+        finish(mpError({error: 'The workflow reported a failure.', detail: _short(data.result)}));
+        return;
+      }
+      if (Date.now() - started > MP_MAX_MS) {
+        finish(mpError({error: 'Timed out waiting for the workflow.',
+                        detail: `Still ${data.status || 'running'} after ${Math.round(MP_MAX_MS / 1000)}s (execution ${execId}).`}));
+        return;
+      }
+      fcPollTimer = setTimeout(() => fcPoll(execId, started, finish, box), MP_POLL_INTERVAL);
+    })
+    .catch(() => {
+      if (Date.now() - started > MP_MAX_MS) { finish(mpError({error: 'Lost connection while polling the workflow.'})); return; }
+      fcPollTimer = setTimeout(() => fcPoll(execId, started, finish, box), MP_POLL_INTERVAL);
+    });
+}
+
+function fcShowLoader(box, elapsed) {
+  box.innerHTML = `<div class="d-flex align-items-center text-muted small">
+      <span class="spinner-border spinner-border-sm me-2 text-primary"></span>
+      Refold is building your ${fcDays}-day forecast… <span class="ms-1">(${elapsed}s)</span>
+    </div>`;
+}
+
+function fcExtractForecast(exec) {
+  if (!exec || typeof exec !== 'object') return null;
+  const bodies = [];
+  if (Array.isArray(exec.nodes)) exec.nodes.forEach(n => { if (n && n.latest_output) bodies.push(n.latest_output.body); });
+  bodies.push(exec.body, exec.result, exec.output, exec);
+  for (const body of bodies) {
+    if (!body) continue;
+    const cand = agentUnwrapBrief(body.forecast || body.brief || body);
+    if (cand && (cand.call || cand.total_weighted != null || cand.total_weighted_forecast != null || cand.weighted != null || cand.pipeline)) return cand;
+  }
+  return null;
+}
+
+function fcNum() {
+  for (const v of arguments) { if (v !== undefined && v !== null && v !== '') return Number(v); }
+  return null;
+}
+
+function fcTile(label, value, strong) {
+  return `<div class="col"><div class="card kpi-card h-100 border-0 shadow-sm"><div class="card-body py-2">
+      <div class="kpi-label">${label}</div>
+      <div class="kpi-value ${strong ? 'text-primary' : ''}">${value == null ? '—' : rpMoney(value)}</div>
+    </div></div></div>`;
+}
+
+function fcConfidenceBadge(conf) {
+  if (!conf) return '';
+  const c = String(conf).toLowerCase();
+  const cls = c.includes('high') ? 'bg-success-subtle text-success'
+    : (c.includes('low') ? 'bg-danger-subtle text-danger' : 'bg-warning-subtle text-warning');
+  return `<span class="badge ${cls}"><i class="fa-solid fa-gauge-high me-1"></i>${escapeHtml(String(conf))} confidence</span>`;
+}
+
+function renderForecast(exec, days, ts) {
+  const fc = fcExtractForecast(exec);
+  if (!fc) {
+    return `<div class="small text-muted mb-2">The workflow finished but returned no forecast.</div>
+      <pre class="small bg-light p-2 rounded mb-0" style="white-space:pre-wrap;max-height:240px;overflow:auto">${escapeHtml(JSON.stringify(exec, null, 2))}</pre>`;
+  }
+  const pl = fc.pipeline || {};
+  const ren = fc.renewals || {};
+  const weighted = fcNum(fc.weighted, pl.weighted);
+  const commit = fcNum(fc.commit, pl.commit);
+  const bestCase = fcNum(fc.best_case, pl.best_case, pl.gross);
+  const renWtd = fcNum(fc.renewals_weighted, ren.weighted);
+  const total = fcNum(fc.total_weighted, fc.total_weighted_forecast,
+    (weighted || 0) + (renWtd || 0));
+  const risks = fc.risks || [];
+  const upside = fc.upside || [];
+
+  let html = `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+      <div><span class="badge bg-primary-subtle text-primary me-2">Next ${days}d</span>${fcConfidenceBadge(fc.confidence)}</div>
+      ${mpGeneratedLabel(ts)}
+    </div>`;
+  if (fc.call) html += `<h5 class="fw-semibold mb-1">${escapeHtml(fc.call)}</h5>`;
+  if (fc.summary) html += `<p class="text-muted small mb-3">${escapeHtml(fc.summary)}</p>`;
+
+  html += `<div class="row row-cols-2 row-cols-md-4 g-2 mb-3">
+      ${fcTile('Total weighted', total, true)}
+      ${fcTile('Pipeline weighted', weighted)}
+      ${fcTile('Commit', commit)}
+      ${fcTile('Best case', bestCase)}
+    </div>`;
+  if (renWtd != null) html += `<div class="small text-muted mb-3">Includes ${rpMoney(renWtd)} weighted from renewals${ren.count != null ? ` (${ren.count})` : ''}.</div>`;
+
+  html += '<div class="row g-3">';
+  if (risks.length) html += `<div class="col-md-6"><div class="fw-semibold small mb-1"><i class="fa-solid fa-triangle-exclamation me-1 text-warning"></i>Risks to the number</div>${mpList(risks)}</div>`;
+  if (upside.length) html += `<div class="col-md-6"><div class="fw-semibold small mb-1"><i class="fa-solid fa-arrow-trend-up me-1 text-success"></i>Upside</div>${mpList(upside)}</div>`;
+  html += '</div>';
+  html += agentActionsTaken(fc.actions_taken || []);
+  return html;
+}
+
 // Restore the last briefing on load so tab navigation doesn't force a re-run.
 function mpInit() {
   if (document.getElementById('mpResult')) {
@@ -1093,6 +1266,9 @@ function mpInit() {
   }
   if (document.getElementById('phResult')) {
     phRestore();
+  }
+  if (document.getElementById('fcResult')) {
+    fcRestore();
   }
 }
 if (document.readyState === 'loading') {

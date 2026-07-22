@@ -192,7 +192,8 @@ def notifications():
 @mod_bp.route("/reports")
 @login_required
 def reports():
-    return render_template("reports.html")
+    return render_template("reports.html",
+                           fc_windows=current_app.config["FORECAST_WINDOWS"])
 
 
 @mod_bp.route("/ai-chat")

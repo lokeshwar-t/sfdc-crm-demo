@@ -158,6 +158,13 @@ def opportunity_context(opportunity_id):
     return jsonify(core.opportunity_context(o))
 
 
+@agent_bp.route("/forecast-context")
+@require_agent_token
+def forecast_context():
+    days = request.args.get("days", default=90, type=int)
+    return jsonify(core.forecast_context(days))
+
+
 # --------------------------------------------------------------- actions (write)
 @agent_bp.route("/notes", methods=["POST"])
 @require_agent_token

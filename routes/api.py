@@ -397,6 +397,57 @@ def pipeline_hygiene_notify():
     return jsonify(ok=True, id=n.id)
 
 
+@api_bp.route("/forecast/run", methods=["POST"])
+@login_required
+def forecast_run():
+    data = request.get_json(silent=True) or {}
+    try:
+        days = int(data.get("days", 90))
+    except (TypeError, ValueError):
+        days = 90
+    if days not in current_app.config["FORECAST_WINDOWS"]:
+        return jsonify(error=f"days must be one of "
+                             f"{current_app.config['FORECAST_WINDOWS']}"), 400
+    if not _refold_configured():
+        return jsonify(error="Forecast workflow is not configured.",
+                       hint="Set REFOLD_API_KEY and REFOLD_LINKED_ACCOUNT_ID."), 503
+    c = current_app.config
+    if not c.get("REFOLD_FORECAST_WORKFLOW_ID"):
+        return jsonify(error="Forecast workflow is not configured.",
+                       hint="Set REFOLD_FORECAST_WORKFLOW_ID to the Cobalt workflow id."), 503
+    ok, code, resp = _start_workflow(c["REFOLD_FORECAST_WORKFLOW_ID"],
+                                     c.get("REFOLD_FORECAST_SLUG"),
+                                     {"days": str(days)})
+    if not ok:
+        return jsonify(error="Could not start the Forecast workflow.",
+                       detail=_short(resp), status=code), 502
+    exec_id = _extract_execution_id(resp)
+    if not exec_id:
+        return jsonify(error="Workflow started but no execution id was returned.",
+                       detail=_short(resp)), 502
+    return jsonify(ok=True, execution_id=exec_id, window_days=days)
+
+
+@api_bp.route("/forecast/status/<execution_id>")
+@login_required
+def forecast_status(execution_id):
+    if not _refold_configured():
+        return jsonify(error="Forecast workflow is not configured."), 503
+    return _status_payload(execution_id)
+
+
+@api_bp.route("/forecast/notify", methods=["POST"])
+@login_required
+def forecast_notify():
+    data = request.get_json(silent=True) or {}
+    call = (data.get("call") or "Your forecast is ready.")[:160]
+    n = Notification(user_id=current_user.id, category="Deal",
+                     message=f"Forecast: {call}", link="/reports")
+    db.session.add(n)
+    db.session.commit()
+    return jsonify(ok=True, id=n.id)
+
+
 @api_bp.route("/briefing/notify", methods=["POST"])
 @login_required
 def briefing_notify():

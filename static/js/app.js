@@ -340,19 +340,229 @@ function renderMeetingPrep(exec, hours, ts) {
   return html;
 }
 
-// Expand/collapse every meeting card at once (keeps carets + aria in sync via Bootstrap).
-function mpToggleAll(show) {
-  document.querySelectorAll('#mpResult .mp-collapse').forEach(el => {
+// Expand/collapse every card in a result container (carets + aria stay in sync via Bootstrap).
+function mpToggleAll(show, sel) {
+  document.querySelectorAll(`${sel || '#mpResult'} .mp-collapse`).forEach(el => {
     const c = bootstrap.Collapse.getOrCreateInstance(el, {toggle: false});
     show ? c.show() : c.hide();
   });
 }
 
+
+// ---------- Renewal agent (same trigger→poll→render pattern as Meeting-Prep) ----------
+let rpDays = 90;
+const RP_STORE_KEY = 'rp:lastRun';
+
+function rpSelectWindow(btn) {
+  rpDays = parseInt(btn.dataset.days, 10);
+  rpSetActiveWindow(rpDays);
+}
+
+function rpSetActiveWindow(days) {
+  document.querySelectorAll('#rpWindow .btn').forEach(b =>
+    b.classList.toggle('active', parseInt(b.dataset.days, 10) === days));
+}
+
+function rpSaveRun(exec, days, ts) {
+  try { sessionStorage.setItem(RP_STORE_KEY, JSON.stringify({exec: exec, days: days, generatedAt: ts})); } catch (e) {}
+}
+
+function rpRestore() {
+  let saved = null;
+  try { saved = JSON.parse(sessionStorage.getItem(RP_STORE_KEY) || 'null'); } catch (e) { saved = null; }
+  if (!saved || !saved.exec) return;
+  rpDays = saved.days || rpDays;
+  rpSetActiveWindow(rpDays);
+  const box = document.getElementById('rpResult');
+  box.classList.remove('d-none');
+  box.innerHTML = renderRenewalPrep(saved.exec, rpDays, saved.generatedAt);
+  mpStartRelTimer();
+}
+
+function runRenewalPrep() {
+  const btn = document.getElementById('rpRunBtn');
+  const box = document.getElementById('rpResult');
+  const original = btn.innerHTML;
+  const started = Date.now();
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Preparing…';
+  box.classList.remove('d-none');
+  rpShowLoader(box, 0);
+
+  const finish = (html) => {
+    if (rpPollTimer) { clearTimeout(rpPollTimer); rpPollTimer = null; }
+    box.innerHTML = html;
+    btn.disabled = false;
+    btn.innerHTML = original;
+  };
+
+  fetch('/api/renewal-prep/run', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({days: rpDays})
+  }).then(async r => ({ok: r.ok, data: await r.json()}))
+    .then(({ok, data}) => {
+      if (!ok || data.error || !data.execution_id) { finish(mpError(data)); return; }
+      rpPoll(data.execution_id, started, finish, box);
+    })
+    .catch(() => finish(mpError({error: 'Could not reach the agent.'})));
+}
+
+let rpPollTimer = null;
+function rpPoll(execId, started, finish, box) {
+  rpShowLoader(box, Math.round((Date.now() - started) / 1000));
+  fetch(`/api/renewal-prep/status/${encodeURIComponent(execId)}`)
+    .then(async r => ({ok: r.ok, data: await r.json()}))
+    .then(({ok, data}) => {
+      if (!ok || data.error) { finish(mpError(data)); return; }
+      if (data.state === 'success') {
+        const ts = Date.now();
+        rpSaveRun(data.result, rpDays, ts);
+        finish(renderRenewalPrep(data.result, rpDays, ts));
+        mpStartRelTimer();
+        return;
+      }
+      if (data.state === 'error') {
+        finish(mpError({error: 'The workflow reported a failure.', detail: _short(data.result)}));
+        return;
+      }
+      if (Date.now() - started > MP_MAX_MS) {
+        finish(mpError({error: 'Timed out waiting for the workflow.',
+                        detail: `Still ${data.status || 'running'} after ${Math.round(MP_MAX_MS / 1000)}s (execution ${execId}).`}));
+        return;
+      }
+      rpPollTimer = setTimeout(() => rpPoll(execId, started, finish, box), MP_POLL_INTERVAL);
+    })
+    .catch(() => {
+      if (Date.now() - started > MP_MAX_MS) { finish(mpError({error: 'Lost connection while polling the workflow.'})); return; }
+      rpPollTimer = setTimeout(() => rpPoll(execId, started, finish, box), MP_POLL_INTERVAL);
+    });
+}
+
+function rpShowLoader(box, elapsed) {
+  box.innerHTML = `<div class="d-flex align-items-center text-muted small">
+      <span class="spinner-border spinner-border-sm me-2 text-primary"></span>
+      Refold is briefing you on renewals in the next ${rpDays} days… <span class="ms-1">(${elapsed}s)</span>
+    </div>`;
+}
+
+function rpMoney(v) {
+  if (v === null || v === undefined || v === '') return '';
+  const n = Number(v);
+  if (isNaN(n)) return escapeHtml(String(v));
+  if (Math.abs(n) >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
+  if (Math.abs(n) >= 1e3) return `$${Math.round(n / 1e3)}K`;
+  return `$${Math.round(n)}`;
+}
+
+function rpFmtDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return escapeHtml(iso);
+  return d.toLocaleDateString('en-US', {month: 'short', day: '2-digit', year: 'numeric'});
+}
+
+function rpLikelihoodClass(p) {
+  const n = Number(p);
+  if (isNaN(n)) return 'bg-light text-dark border';
+  if (n >= 75) return 'bg-success-subtle text-success';
+  if (n >= 55) return 'bg-warning-subtle text-warning';
+  return 'bg-danger-subtle text-danger';
+}
+
+function renderRenewalPrep(exec, days, ts) {
+  const briefs = mpExtractBriefs(exec);   // same Cobalt envelope as Meeting-Prep
+  if (!briefs.length) {
+    return `<div class="text-center text-muted py-4">
+        <i class="fa-regular fa-calendar-check fa-2x mb-2 d-block text-secondary"></i>
+        <div class="fw-semibold">No renewals in the next ${days} days</div>
+        <div class="small">Nothing due in this window — try a longer one.</div>
+        ${ts ? `<div class="mt-2">${mpGeneratedLabel(ts)}</div>` : ''}
+        <details class="mt-3 text-start"><summary class="small text-secondary" style="cursor:pointer">Raw workflow response</summary>
+          <pre class="small bg-light p-2 rounded mt-2 mb-0" style="white-space:pre-wrap;max-height:240px;overflow:auto">${escapeHtml(JSON.stringify(exec, null, 2))}</pre>
+        </details>
+      </div>`;
+  }
+
+  let html = `<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+      <div>
+        <span class="badge bg-primary-subtle text-primary me-2">Next ${days}d</span>
+        <span class="small text-muted">${briefs.length} renewal${briefs.length === 1 ? '' : 's'} briefed by the agent</span>
+      </div>
+      <div class="d-flex align-items-center flex-wrap gap-3">
+        ${mpGeneratedLabel(ts)}
+        <div class="btn-group btn-group-sm">
+          <button type="button" class="btn btn-outline-secondary" onclick="mpToggleAll(true, '#rpResult')"><i class="fa-solid fa-angles-down me-1"></i>Expand all</button>
+          <button type="button" class="btn btn-outline-secondary" onclick="mpToggleAll(false, '#rpResult')"><i class="fa-solid fa-angles-up me-1"></i>Collapse all</button>
+        </div>
+      </div>
+    </div><div class="row g-3">`;
+
+  briefs.forEach((item, i) => {
+    const b = item.brief || item;
+    const account = item.account || b.account || 'Account';
+    const amount = item.amount != null ? item.amount : b.amount;
+    const likelihood = item.likelihood != null ? item.likelihood : b.likelihood;
+    const status = item.status || b.status;
+    const renewalDate = item.renewal_date || b.renewal_date;
+    const tps = b.talking_points || [];
+    const risks = b.risks || [];
+    const play = b.recommended_play || b.recommended_ask || b.play;
+    const hasHealth = b.health && String(b.health).toLowerCase() !== 'not available';
+    const bodyId = `rpBody${i}`;
+
+    html += `<div class="col-12">
+      <div class="card section-card">
+        <div class="card-header bg-white border-0 py-2 mp-toggle" role="button" tabindex="0"
+             data-bs-toggle="collapse" data-bs-target="#${bodyId}" aria-expanded="true" aria-controls="${bodyId}">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h6 class="fw-semibold mb-0">
+              <i class="fa-solid fa-chevron-down me-2 mp-caret text-muted small"></i>
+              <i class="fa-solid fa-rotate me-2 text-primary"></i>${escapeHtml(account)}
+            </h6>
+            <div class="d-flex gap-2 flex-wrap align-items-center">
+              ${amount != null ? `<span class="badge bg-dark-subtle text-dark border">${rpMoney(amount)}</span>` : ''}
+              ${likelihood != null ? `<span class="badge ${rpLikelihoodClass(likelihood)}">${escapeHtml(String(likelihood))}% likely</span>` : ''}
+              ${status ? `<span class="badge bg-light text-dark border">${escapeHtml(status)}</span>` : ''}
+              ${renewalDate ? `<span class="badge bg-light text-dark border"><i class="fa-regular fa-calendar me-1"></i>${rpFmtDate(renewalDate)}</span>` : ''}
+              ${hasHealth ? `<span class="badge ${mpHealthClass(b.health)}"><i class="fa-solid fa-heart-pulse me-1"></i>${escapeHtml(b.health)}</span>` : ''}
+            </div>
+          </div>
+        </div>
+        <div id="${bodyId}" class="collapse show mp-collapse">
+          <div class="card-body pt-2">
+            ${b.situation ? `<p class="small text-muted mb-3">${escapeHtml(b.situation)}</p>` : ''}
+            <div class="row g-3">
+              ${tps.length ? `<div class="col-md-6">
+                <div class="fw-semibold small mb-1"><i class="fa-solid fa-comment-dots me-1 text-info"></i>Talking points</div>
+                ${mpList(tps)}
+              </div>` : ''}
+              ${risks.length ? `<div class="col-md-6">
+                <div class="fw-semibold small mb-1"><i class="fa-solid fa-triangle-exclamation me-1 text-warning"></i>Risks</div>
+                ${mpList(risks)}
+              </div>` : ''}
+            </div>
+            ${play ? `<div class="alert alert-primary py-2 px-3 small mt-3 mb-0"><i class="fa-solid fa-chess-knight me-1"></i><strong>Recommended play:</strong> ${escapeHtml(play)}</div>` : ''}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  html += '</div>';
+  return html;
+}
+
 // Restore the last briefing on load so tab navigation doesn't force a re-run.
 function mpInit() {
-  if (!document.getElementById('mpResult')) return;
-  mpRestore();                 // may set mpHours from the saved run
-  mpLoadMeetings(mpHours);     // reflect the restored/default window in the list
+  if (document.getElementById('mpResult')) {
+    mpRestore();                 // may set mpHours from the saved run
+    mpLoadMeetings(mpHours);     // reflect the restored/default window in the list
+  }
+  if (document.getElementById('rpResult')) {
+    rpRestore();
+  }
 }
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', mpInit);

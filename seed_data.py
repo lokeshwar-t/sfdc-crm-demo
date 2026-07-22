@@ -200,8 +200,12 @@ def seed():
     for i, a in enumerate(customers):
         n_contracts = 2 if i < 100 else 1  # 300 total
         for j in range(n_contracts):
-            start = TODAY - timedelta(days=random.randint(60, 1000))
-            end = start + timedelta(days=365 * 3)
+            # Spread renewals across ~ -8 to +23 months so near-term windows
+            # (30/60/90/180d) have content. Same single randint draw as before,
+            # so the downstream RNG stream — and all other seeded data — is unchanged.
+            off = random.randint(60, 1000)
+            end = TODAY + timedelta(days=off - 300)   # renewal (contract end) date
+            start = end - timedelta(days=365 * 3)
             value = a.arr * 3 * random.uniform(0.8, 1.1)
             c = Contract(number=f"CV-{2023 + j}-{1000 + i * 2 + j}", account_id=a.id, value=value,
                          start_date=start, end_date=end, term_months=36,

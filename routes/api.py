@@ -118,6 +118,47 @@ def _execution_state(resp):
     return "running", status
 
 
+# Shared Cobalt calls — every agent fires/polls the same way; only the workflow
+# id, slug, and trigger body differ per agent.
+def _start_workflow(workflow_id, slug, body):
+    c = current_app.config
+    url = (f"{c['REFOLD_API_BASE'].rstrip('/')}"
+           f"/api/v1/workflow/{workflow_id}/execute")
+    headers = {
+        "Content-Type": "application/json",
+        "X-API-Key": c["REFOLD_API_KEY"],
+        "linked_account_id": c["REFOLD_LINKED_ACCOUNT_ID"],
+        "sync_execution": "false",
+    }
+    if slug:
+        headers["slug"] = slug
+    if c.get("REFOLD_CONFIG_ID"):
+        headers["config_id"] = c["REFOLD_CONFIG_ID"]
+    return _refold_call("POST", url, headers, body=body)
+
+
+def _poll_execution(execution_id):
+    c = current_app.config
+    url = (f"{c['REFOLD_API_BASE'].rstrip('/')}"
+           f"/api/v2/public/execution/{execution_id}")
+    headers = {
+        "x-api-key": c["REFOLD_API_KEY"],
+        "linked_account_id": c["REFOLD_LINKED_ACCOUNT_ID"],
+    }
+    return _refold_call("GET", url, headers)
+
+
+def _status_payload(execution_id):
+    """Shared status handler used by every agent's status route."""
+    ok, code, resp = _poll_execution(execution_id)
+    if not ok:
+        return jsonify(error="Could not fetch workflow status.",
+                       detail=_short(resp), status=code), 502
+    state, status_raw = _execution_state(resp)
+    return jsonify(ok=True, state=state, status=status_raw,
+                   execution_id=execution_id, result=resp)
+
+
 @api_bp.route("/meeting-prep/run", methods=["POST"])
 @login_required
 def meeting_prep_run():
@@ -132,22 +173,10 @@ def meeting_prep_run():
     if not _refold_configured():
         return jsonify(error="Meeting-Prep workflow is not configured.",
                        hint="Set REFOLD_API_KEY and REFOLD_LINKED_ACCOUNT_ID."), 503
-
     c = current_app.config
-    url = (f"{c['REFOLD_API_BASE'].rstrip('/')}"
-           f"/api/v1/workflow/{c['REFOLD_MEETING_PREP_WORKFLOW_ID']}/execute")
-    headers = {
-        "Content-Type": "application/json",
-        "X-API-Key": c["REFOLD_API_KEY"],
-        "linked_account_id": c["REFOLD_LINKED_ACCOUNT_ID"],
-        "sync_execution": "false",
-    }
-    if c.get("REFOLD_MEETING_PREP_SLUG"):
-        headers["slug"] = c["REFOLD_MEETING_PREP_SLUG"]
-    if c.get("REFOLD_CONFIG_ID"):
-        headers["config_id"] = c["REFOLD_CONFIG_ID"]
-
-    ok, code, resp = _refold_call("POST", url, headers, body={"hours": str(hours)})
+    ok, code, resp = _start_workflow(c["REFOLD_MEETING_PREP_WORKFLOW_ID"],
+                                     c.get("REFOLD_MEETING_PREP_SLUG"),
+                                     {"hours": str(hours)})
     if not ok:
         return jsonify(error="Could not start the Meeting-Prep workflow.",
                        detail=_short(resp), status=code), 502
@@ -163,20 +192,46 @@ def meeting_prep_run():
 def meeting_prep_status(execution_id):
     if not _refold_configured():
         return jsonify(error="Meeting-Prep workflow is not configured."), 503
+    return _status_payload(execution_id)
+
+
+@api_bp.route("/renewal-prep/run", methods=["POST"])
+@login_required
+def renewal_prep_run():
+    data = request.get_json(silent=True) or {}
+    try:
+        days = int(data.get("days", 90))
+    except (TypeError, ValueError):
+        days = 90
+    if days not in current_app.config["RENEWAL_WINDOWS"]:
+        return jsonify(error=f"days must be one of "
+                             f"{current_app.config['RENEWAL_WINDOWS']}"), 400
+    if not _refold_configured():
+        return jsonify(error="Renewal workflow is not configured.",
+                       hint="Set REFOLD_API_KEY and REFOLD_LINKED_ACCOUNT_ID."), 503
     c = current_app.config
-    url = (f"{c['REFOLD_API_BASE'].rstrip('/')}"
-           f"/api/v2/public/execution/{execution_id}")
-    headers = {
-        "x-api-key": c["REFOLD_API_KEY"],
-        "linked_account_id": c["REFOLD_LINKED_ACCOUNT_ID"],
-    }
-    ok, code, resp = _refold_call("GET", url, headers)
+    if not c.get("REFOLD_RENEWAL_WORKFLOW_ID"):
+        return jsonify(error="Renewal workflow is not configured.",
+                       hint="Set REFOLD_RENEWAL_WORKFLOW_ID to the Cobalt workflow id."), 503
+    ok, code, resp = _start_workflow(c["REFOLD_RENEWAL_WORKFLOW_ID"],
+                                     c.get("REFOLD_RENEWAL_SLUG"),
+                                     {"days": str(days)})
     if not ok:
-        return jsonify(error="Could not fetch workflow status.",
+        return jsonify(error="Could not start the Renewal workflow.",
                        detail=_short(resp), status=code), 502
-    state, status_raw = _execution_state(resp)
-    return jsonify(ok=True, state=state, status=status_raw,
-                   execution_id=execution_id, result=resp)
+    exec_id = _extract_execution_id(resp)
+    if not exec_id:
+        return jsonify(error="Workflow started but no execution id was returned.",
+                       detail=_short(resp)), 502
+    return jsonify(ok=True, execution_id=exec_id, window_days=days)
+
+
+@api_bp.route("/renewal-prep/status/<execution_id>")
+@login_required
+def renewal_prep_status(execution_id):
+    if not _refold_configured():
+        return jsonify(error="Renewal workflow is not configured."), 503
+    return _status_payload(execution_id)
 
 
 # ---------------- chart data ----------------

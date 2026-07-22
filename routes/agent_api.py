@@ -79,6 +79,29 @@ def meeting_context(meeting_id):
     return jsonify(core.meeting_context(m))
 
 
+@agent_bp.route("/renewals-upcoming")
+@require_agent_token
+def renewals_upcoming():
+    days = request.args.get("days", default=90, type=int)
+    rows = core.upcoming_renewals(days)
+    return jsonify(count=len(rows), days=days, renewals=[
+        {"id": r.id, "account_id": r.account_id,
+         "account": r.account.name if r.account else None,
+         "renewal_date": r.renewal_date.isoformat() if r.renewal_date else None,
+         "amount": r.amount, "likelihood": r.likelihood, "status": r.status,
+         "owner_id": r.owner_id} for r in rows])
+
+
+@agent_bp.route("/renewal-context/<int:renewal_id>")
+@require_agent_token
+def renewal_context(renewal_id):
+    from models import Renewal
+    r = db.session.get(Renewal, renewal_id)
+    if not r:
+        return jsonify(error="renewal not found"), 404
+    return jsonify(core.renewal_context(r))
+
+
 # --------------------------------------------------------------- actions (write)
 @agent_bp.route("/notes", methods=["POST"])
 @require_agent_token

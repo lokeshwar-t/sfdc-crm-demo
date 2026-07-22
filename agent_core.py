@@ -108,8 +108,22 @@ def upcoming_meetings(hours=24):
             .order_by(Meeting.start_time).all())
 
 
+def upcoming_renewals(days=90):
+    today = date.today()
+    end = today + timedelta(days=days)
+    return (Renewal.query
+            .filter(Renewal.renewal_date >= today,
+                    Renewal.renewal_date <= end,
+                    Renewal.account_id.isnot(None))
+            .order_by(Renewal.renewal_date).all())
+
+
 def _months_to(d):
     return None if not d else max(0, (d - date.today()).days // 30)
+
+
+def _days_to(d):
+    return None if not d else max(0, (d - date.today()).days)
 
 
 def meeting_context(m):
@@ -159,6 +173,59 @@ def meeting_context(m):
             "amount": renewal.amount, "likelihood": renewal.likelihood,
             "status": renewal.status,
         } if renewal else None,
+        "contacts": [
+            {"name": c.name, "title": c.title,
+             "exec_sponsor": c.is_executive_sponsor} for c in (acct.contacts if acct else [])],
+        "recent_activities": [
+            {"type": a.activity_type, "subject": a.subject,
+             "date": a.activity_date.isoformat() if a.activity_date else None}
+            for a in acts],
+        "recent_emails": [
+            {"subject": e.subject, "snippet": e.snippet,
+             "sent_at": e.sent_at.isoformat() if e.sent_at else None} for e in emails],
+        "open_tasks": [{"title": t.title, "priority": t.priority} for t in tasks],
+    }
+
+
+def renewal_context(r):
+    """The compact JSON block Refold's Renewal LLM reasons over.
+
+    Pure assembly of existing records — deterministic, no intelligence.
+    """
+    acct = r.account
+    h = acct.health if acct else None
+    open_opps = [o for o in acct.opportunities
+                 if o.stage not in ("Closed Won", "Closed Lost")] if acct else []
+    acts = (Activity.query.filter_by(account_id=acct.id)
+            .order_by(Activity.activity_date.desc()).limit(5).all()) if acct else []
+    emails = (Email.query.filter_by(account_id=acct.id)
+              .order_by(Email.sent_at.desc()).limit(5).all()) if acct else []
+    tasks = (Task.query.filter_by(account_id=acct.id, status="Open").all()) if acct else []
+
+    return {
+        "renewal": {
+            "id": r.id,
+            "date": r.renewal_date.isoformat() if r.renewal_date else None,
+            "days_out": _days_to(r.renewal_date),
+            "months_out": _months_to(r.renewal_date),
+            "amount": r.amount, "likelihood": r.likelihood, "status": r.status,
+            "owner": r.owner.name if r.owner else None,
+        },
+        "account": {
+            "id": acct.id, "name": acct.name, "industry": acct.industry,
+            "segment": acct.segment, "arr": acct.arr,
+            "csm": acct.csm.name if acct.csm else None,
+        } if acct else None,
+        "health": {
+            "score": h.score, "status": h.status, "trend": h.trend,
+            "product_usage": h.product_usage, "adoption": h.adoption,
+            "exec_meetings_90d": h.exec_meetings, "nps": h.nps,
+            "training_completion": h.training_completion,
+        } if h else None,
+        "open_opportunities": [
+            {"name": o.name, "stage": o.stage, "amount": o.amount,
+             "ai_score": o.ai_score, "next_step": o.next_step}
+            for o in open_opps],
         "contacts": [
             {"name": c.name, "title": c.title,
              "exec_sponsor": c.is_executive_sponsor} for c in (acct.contacts if acct else [])],

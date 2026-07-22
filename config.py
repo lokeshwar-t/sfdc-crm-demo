@@ -33,6 +33,10 @@ class Config:
     REFOLD_LINKED_ACCOUNT_ID = os.environ.get("REFOLD_LINKED_ACCOUNT_ID", "")  # global — linked_account_id (env-only)
     REFOLD_MEETING_PREP_WORKFLOW_ID = os.environ.get("REFOLD_MEETING_PREP_WORKFLOW_ID", "6a5f73903284520f7515020f")
     REFOLD_MEETING_PREP_SLUG = os.environ.get("REFOLD_MEETING_PREP_SLUG", "Coba-8517")
+    # Renewal agent — set once the Cobalt workflow exists (empty → button reports "not configured")
+    REFOLD_RENEWAL_WORKFLOW_ID = os.environ.get("REFOLD_RENEWAL_WORKFLOW_ID", "")
+    REFOLD_RENEWAL_SLUG = os.environ.get("REFOLD_RENEWAL_SLUG", "")
     REFOLD_CONFIG_ID = os.environ.get("REFOLD_CONFIG_ID", "")                   # optional per-run config
     REFOLD_HTTP_TIMEOUT = int(os.environ.get("REFOLD_HTTP_TIMEOUT", "30"))      # per-request seconds
     MEETING_PREP_WINDOWS = [4, 8, 24, 48]  # selectable time windows (hours)
+    RENEWAL_WINDOWS = [30, 60, 90, 180]    # selectable renewal windows (days)

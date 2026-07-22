@@ -1,5 +1,5 @@
 from datetime import date, datetime, timedelta
-from flask import Blueprint, render_template, request, redirect, url_for
+from flask import Blueprint, render_template, request, redirect, url_for, current_app
 from flask_login import login_required, current_user
 from sqlalchemy import func, or_
 from database import db
@@ -120,7 +120,8 @@ def renewals():
         amt = sum(r.amount for r in upcoming if r.renewal_date.month == m and r.renewal_date.year == y)
         cnt = sum(1 for r in upcoming if r.renewal_date.month == m and r.renewal_date.year == y)
         months.append(dict(label=date(y, m, 1).strftime("%b %Y"), amount=amt, count=cnt))
-    return render_template("renewals.html", rows=rows[:300], months=months)
+    return render_template("renewals.html", rows=rows[:300], months=months,
+                           rn_windows=current_app.config["RENEWAL_WINDOWS"])
 
 
 @mod_bp.route("/customer-success")

@@ -316,7 +316,9 @@ def briefing_run():
                        hint="Set REFOLD_BRIEFING_WORKFLOW_ID to the Cobalt workflow id."), 503
     ok, code, resp = _start_workflow(c["REFOLD_BRIEFING_WORKFLOW_ID"],
                                      c.get("REFOLD_BRIEFING_SLUG"),
-                                     {"days": str(days)})
+                                     {"days": str(days),
+                                      "user_id": current_user.id,
+                                      "user_name": current_user.name})
     if not ok:
         return jsonify(error="Could not start the Briefing workflow.",
                        detail=_short(resp), status=code), 502

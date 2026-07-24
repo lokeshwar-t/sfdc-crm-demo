@@ -3,7 +3,7 @@ from datetime import datetime, date
 from flask import Blueprint, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from database import db
-from models import Account, Contact, Opportunity, Task, AuditLog
+from models import Account, Contact, Opportunity, Task, AuditLog, Meeting, Renewal, CustomerHealth
 
 edit_bp = Blueprint("edit", __name__, url_prefix="/edit")
 
@@ -114,6 +114,82 @@ def task(rid):
     db.session.commit()
     flash("Task updated.", "success")
     return _back(url_for("mod.tasks"))
+
+
+def _int(name, current, lo=0, hi=100):
+    v = _f(name)
+    if v == "":
+        return current
+    try:
+        return max(lo, min(hi, int(float(v))))
+    except ValueError:
+        return current
+
+
+@edit_bp.route("/meeting/<int:rid>", methods=["POST"])
+@login_required
+def meeting(rid):
+    m = db.session.get(Meeting, rid)
+    if not m:
+        flash("Meeting not found.", "danger")
+        return _back(url_for("mod.meetings"))
+    m.title = _f("title") or m.title
+    m.meeting_type = _f("meeting_type") or m.meeting_type
+    start = _f("start")  # datetime-local: YYYY-MM-DDTHH:MM
+    if start:
+        try:
+            m.start_time = datetime.strptime(start, "%Y-%m-%dT%H:%M")
+        except ValueError:
+            pass
+    if _f("duration_min"):
+        m.duration_min = _int("duration_min", m.duration_min, lo=0, hi=1440)
+    m.location = _f("location") or m.location
+    m.is_executive = bool(request.form.get("is_executive"))
+    m.account_id = int(_f("account_id")) if _f("account_id") else None
+    _audit(f"Edited meeting {m.title}", "meeting", m.id)
+    db.session.commit()
+    flash(f"Meeting “{m.title}” updated.", "success")
+    return _back(url_for("mod.meetings"))
+
+
+@edit_bp.route("/renewal/<int:rid>", methods=["POST"])
+@login_required
+def renewal(rid):
+    r = db.session.get(Renewal, rid)
+    if not r:
+        flash("Renewal not found.", "danger")
+        return _back(url_for("mod.renewals"))
+    if _date("renewal_date"):
+        r.renewal_date = _date("renewal_date")
+    if _f("amount"):
+        r.amount = float(_f("amount"))
+    r.likelihood = _int("likelihood", r.likelihood, lo=0, hi=100)
+    r.status = _f("status") or r.status
+    _audit(f"Edited renewal for {r.account.name if r.account else r.id}", "renewal", r.id)
+    db.session.commit()
+    flash("Renewal updated.", "success")
+    return _back(url_for("mod.renewals"))
+
+
+@edit_bp.route("/health/<int:rid>", methods=["POST"])
+@login_required
+def health(rid):
+    h = db.session.get(CustomerHealth, rid)
+    if not h:
+        flash("Health record not found.", "danger")
+        return _back(url_for("mod.customer_success"))
+    h.score = _int("score", h.score)
+    h.status = _f("status") or h.status
+    h.trend = _f("trend") or h.trend
+    h.product_usage = _int("product_usage", h.product_usage)
+    h.adoption = _int("adoption", h.adoption)
+    h.training_completion = _int("training_completion", h.training_completion)
+    h.nps = _int("nps", h.nps, lo=-100, hi=100)
+    h.exec_meetings = _int("exec_meetings", h.exec_meetings, lo=0, hi=999)
+    _audit(f"Edited health for account {h.account_id}", "customer_health", h.id)
+    db.session.commit()
+    flash("Customer health updated.", "success")
+    return _back(url_for("mod.customer_success"))
 
 
 # ---------- kanban drag & drop ----------

@@ -46,7 +46,12 @@
         <td>{{ h.nps }}</td>
         <td>{{ h.exec_meetings }}</td>
         <td><i class="fa-solid fa-arrow-{{ 'trend-down text-danger' if h.trend=='down' else ('trend-up text-success' if h.trend=='up' else 'right-long text-muted') }}"></i></td>
-        <td>{{ ai_button("", "Identify churn risk", a.id, "btn-light") }}</td>
+        <td class="text-nowrap">
+          <button class="edit-btn" title="Edit health" onclick="openEdit('editHealthModal', this)"
+            data-record='{{ {"id": h.id, "score": h.score, "status": h.status, "trend": h.trend, "product_usage": h.product_usage, "adoption": h.adoption, "training_completion": h.training_completion, "nps": h.nps, "exec_meetings": h.exec_meetings}|tojson }}'>
+            <i class="fa-solid fa-pen"></i></button>
+          {{ ai_button("", "Identify churn risk", a.id, "btn-light") }}
+        </td>
       </tr>
       {% endfor %}
       </tbody>

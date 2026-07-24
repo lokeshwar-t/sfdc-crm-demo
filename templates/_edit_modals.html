@@ -152,3 +152,77 @@
     </form>
   </div></div>
 </div>
+
+<!-- Edit Meeting -->
+<div class="modal fade" id="editMeetingModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content" style="border-radius:16px">
+    <form method="post" data-action-base="/edit/meeting/">
+      <div class="modal-header border-0 pb-0"><h6 class="modal-title fw-bold"><i class="fa-solid fa-pen me-2 text-primary"></i>Edit Meeting</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-2"><label class="form-label small">Title</label><input class="form-control" name="title" required></div>
+        <div class="row g-2">
+          <div class="col-md-6 mb-2"><label class="form-label small">Type</label>
+            <select class="form-select" name="meeting_type"><option>Discovery</option><option>Demo</option><option>Kickoff</option><option>QBR</option><option>Check-in</option><option>Negotiation</option><option>Onboarding</option></select></div>
+          <div class="col-md-6 mb-2"><label class="form-label small">When</label><input class="form-control" name="start" type="datetime-local"></div>
+          <div class="col-md-6 mb-2"><label class="form-label small">Duration (min)</label><input class="form-control" name="duration_min" type="number" min="0" step="15"></div>
+          <div class="col-md-6 mb-2"><label class="form-label small">Location</label><input class="form-control" name="location"></div>
+        </div>
+        <div class="mb-2"><label class="form-label small">Account</label>{{ account_select_e() }}</div>
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="is_executive" id="emExec"><label class="form-check-label small" for="emExec">Executive meeting</label></div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary">Save Changes</button></div>
+    </form>
+  </div></div>
+</div>
+
+<!-- Edit Renewal -->
+<div class="modal fade" id="editRenewalModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content" style="border-radius:16px">
+    <form method="post" data-action-base="/edit/renewal/">
+      <div class="modal-header border-0 pb-0"><h6 class="modal-title fw-bold"><i class="fa-solid fa-pen me-2 text-primary"></i>Edit Renewal</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="row g-2">
+          <div class="col-md-6 mb-2"><label class="form-label small">Renewal date</label><input class="form-control" name="renewal_date" type="date"></div>
+          <div class="col-md-6 mb-2"><label class="form-label small">Amount</label><input class="form-control" name="amount" type="number" min="0" step="1000"></div>
+          <div class="col-md-6 mb-2"><label class="form-label small">Likelihood (%)</label><input class="form-control" name="likelihood" type="number" min="0" max="100"></div>
+          <div class="col-md-6 mb-2"><label class="form-label small">Status</label>
+            <select class="form-select" name="status"><option>Upcoming</option><option>In Progress</option><option>Renewed</option><option>Churned</option><option>At Risk</option></select></div>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary">Save Changes</button></div>
+    </form>
+  </div></div>
+</div>
+
+<!-- Edit Customer Health -->
+<div class="modal fade" id="editHealthModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content" style="border-radius:16px">
+    <form method="post" data-action-base="/edit/health/">
+      <div class="modal-header border-0 pb-0"><h6 class="modal-title fw-bold"><i class="fa-solid fa-pen me-2 text-primary"></i>Edit Customer Health</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="row g-2">
+          <div class="col-md-4 mb-2"><label class="form-label small">Score (0–100)</label><input class="form-control" name="score" type="number" min="0" max="100"></div>
+          <div class="col-md-4 mb-2"><label class="form-label small">Status</label>
+            <select class="form-select" name="status"><option>Green</option><option>Yellow</option><option>Red</option></select></div>
+          <div class="col-md-4 mb-2"><label class="form-label small">Trend</label>
+            <select class="form-select" name="trend"><option value="up">Up</option><option value="flat">Flat</option><option value="down">Down</option></select></div>
+          <div class="col-md-4 mb-2"><label class="form-label small">Product usage (%)</label><input class="form-control" name="product_usage" type="number" min="0" max="100"></div>
+          <div class="col-md-4 mb-2"><label class="form-label small">Adoption (%)</label><input class="form-control" name="adoption" type="number" min="0" max="100"></div>
+          <div class="col-md-4 mb-2"><label class="form-label small">Training (%)</label><input class="form-control" name="training_completion" type="number" min="0" max="100"></div>
+          <div class="col-md-6 mb-2"><label class="form-label small">NPS (−100–100)</label><input class="form-control" name="nps" type="number" min="-100" max="100"></div>
+          <div class="col-md-6 mb-2"><label class="form-label small">Exec meetings (90d)</label><input class="form-control" name="exec_meetings" type="number" min="0"></div>
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary">Save Changes</button></div>
+    </form>
+  </div></div>
+</div>

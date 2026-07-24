@@ -18,6 +18,9 @@
             <div class="small fw-semibold">{{ m.title }} {% if m.is_executive %}<span class="badge text-bg-dark">Exec</span>{% endif %}</div>
             <div class="text-muted" style="font-size:11.5px">{{ m.start_time.strftime('%a, %I:%M %p') }} · {{ m.duration_min }} min · {{ m.location }} · {{ m.organizer.name if m.organizer }}</div>
           </div>
+          <button class="edit-btn" title="Edit meeting" onclick="openEdit('editMeetingModal', this)"
+            data-record='{{ {"id": m.id, "title": m.title, "meeting_type": m.meeting_type, "start": m.start_time.strftime("%Y-%m-%dT%H:%M") if m.start_time else "", "duration_min": m.duration_min, "location": m.location or "", "is_executive": m.is_executive, "account_id": m.account_id or ""}|tojson }}'>
+            <i class="fa-solid fa-pen"></i></button>
           {{ ai_button("Prep", "Prepare me for the meeting: " ~ m.title, m.account_id or '', "btn-light") }}
         </div>
         {% endfor %}

@@ -28,6 +28,9 @@
   <td><span class="badge rounded-pill {{ {'Upcoming':'text-bg-info','In Progress':'text-bg-primary','Renewed':'text-bg-success','Churned':'text-bg-danger','At Risk':'text-bg-warning'}.get(r.status,'text-bg-light') }}">{{ r.status }}</span></td>
   <td data-order="{{ r.likelihood }}"><span class="ai-score {{ 'hi' if r.likelihood >= 75 else ('mid' if r.likelihood >= 55 else 'lo') }}">{{ r.likelihood }}%</span></td>
   <td class="text-muted">{{ r.owner.name if r.owner }}</td>
+  <td class="text-end"><button class="edit-btn" title="Edit renewal" onclick="openEdit('editRenewalModal', this)"
+    data-record='{{ {"id": r.id, "renewal_date": r.renewal_date.isoformat() if r.renewal_date else "", "amount": r.amount or 0, "likelihood": r.likelihood, "status": r.status}|tojson }}'>
+    <i class="fa-solid fa-pen"></i></button></td>
 </tr>
 {% endmacro %}
 
@@ -51,7 +54,7 @@
       <div class="tab-pane fade show active" id="tab-upcoming" role="tabpanel">
         <div class="text-muted small mb-2">Renewals coming due — this is what the Renewal Agent briefs on.</div>
         <table class="table table-hover align-middle datatable" style="width:100%" data-page-length="10" data-order-col="1" data-order-dir="asc">
-          <thead><tr><th>Account</th><th>Renewal Date</th><th>Amount</th><th>Status</th><th>Likelihood</th><th>CSM</th></tr></thead>
+          <thead><tr><th>Account</th><th>Renewal Date</th><th>Amount</th><th>Status</th><th>Likelihood</th><th>CSM</th><th></th></tr></thead>
           <tbody>
           {% for r in upcoming_rows %}{{ renewal_row(r) }}{% else %}<tr><td colspan="6" class="text-muted small py-3">No upcoming renewals.</td></tr>{% endfor %}
           </tbody>
@@ -60,7 +63,7 @@
       <div class="tab-pane fade" id="tab-past" role="tabpanel">
         <div class="text-muted small mb-2">Past renewals (renewed or churned) — for reference.</div>
         <table class="table table-hover align-middle datatable" style="width:100%" data-page-length="10" data-order-col="1" data-order-dir="desc">
-          <thead><tr><th>Account</th><th>Renewal Date</th><th>Amount</th><th>Status</th><th>Likelihood</th><th>CSM</th></tr></thead>
+          <thead><tr><th>Account</th><th>Renewal Date</th><th>Amount</th><th>Status</th><th>Likelihood</th><th>CSM</th><th></th></tr></thead>
           <tbody>
           {% for r in past_rows %}{{ renewal_row(r) }}{% else %}<tr><td colspan="6" class="text-muted small py-3">No completed renewals.</td></tr>{% endfor %}
           </tbody>

@@ -4,7 +4,31 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
     <h1 class="page-title mb-0"><i class="fa-solid fa-wand-magic-sparkles text-ai me-2"></i>CloudVision AI</h1>
-    <div class="text-muted small">Ask anything about your customers, pipeline and revenue</div>
+    <div class="text-muted small">Ask anything — or run an agent. Try “prep my meetings”, “what’s at risk”, “run the forecast”.</div>
+  </div>
+</div>
+
+<!-- Meeting-Prep agent (Refold workflow trigger) -->
+<div class="card section-card mb-4" id="meetingPrepCard">
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <div>
+        <h6 class="fw-semibold mb-1"><i class="fa-solid fa-robot me-2 text-primary"></i>Meeting-Prep Agent</h6>
+        <div class="text-muted small">Brief me on every meeting in the window ahead — powered by the Refold agent.</div>
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <div class="btn-group" role="group" aria-label="Time window" id="mpWindow">
+          {% for w in mp_windows %}
+          <button type="button" class="btn btn-sm btn-outline-primary{{ ' active' if w == 24 }}"
+                  data-hours="{{ w }}" onclick="mpSelectWindow(this)">{{ w }}h</button>
+          {% endfor %}
+        </div>
+        <button type="button" class="btn btn-sm btn-ai" id="mpRunBtn" onclick="runMeetingPrep()">
+          <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Run Meeting Prep
+        </button>
+      </div>
+    </div>
+    <div id="mpResult" class="mt-3 d-none"></div>
   </div>
 </div>
 
@@ -13,26 +37,32 @@
     <div class="card section-card">
       <div class="card-body d-flex flex-column" style="min-height:60vh">
         <div id="pageAiMessages" class="ai-messages flex-grow-1" style="max-height:55vh">
-          <div class="ai-msg ai">Hi {{ current_user.name.split()[0] }} — ask me about risks, forecasts, renewals, pipeline health, or any account.</div>
+          <div class="ai-msg ai">Hi {{ current_user.name.split()[0] }} — ask me about risks, forecasts, renewals or any account. Or launch an agent: say <b>“prep my meetings”</b>, <b>“which customers are at risk”</b>, <b>“run the forecast”</b>, <b>“clean up my pipeline”</b>, or <b>“give me the morning briefing”</b>.</div>
         </div>
         <div class="ai-suggest mb-2">
-          <button class="chip" onclick="pageAsk('Which customers are at risk?')">Customers at risk</button>
-          <button class="chip" onclick="pageAsk('What changed this week?')">This week's changes</button>
+          <button class="chip" onclick="pageAsk('Prep me for my upcoming meetings')"><i class="fa-solid fa-robot me-1 text-primary"></i>Prep my meetings</button>
+          <button class="chip" onclick="pageAsk('Which customers are at risk of churn?')"><i class="fa-solid fa-robot me-1 text-primary"></i>Churn risk</button>
+          <button class="chip" onclick="pageAsk('Run the forecast for this quarter')"><i class="fa-solid fa-robot me-1 text-primary"></i>Forecast</button>
+          <button class="chip" onclick="pageAsk('Clean up my pipeline')"><i class="fa-solid fa-robot me-1 text-primary"></i>Pipeline hygiene</button>
+          <button class="chip" onclick="pageAsk('Give me the morning briefing')"><i class="fa-solid fa-robot me-1 text-primary"></i>Briefing</button>
+          <button class="chip" onclick="pageAsk('Which renewals are coming due?')"><i class="fa-solid fa-robot me-1 text-primary"></i>Renewals</button>
           <button class="chip" onclick="pageAsk('Summarize the business')">Business summary</button>
-          <button class="chip" onclick="pageAsk('Predict next quarter')">Predict next quarter</button>
-          <button class="chip" onclick="pageAsk('Generate board meeting summary')">Board summary</button>
           <button class="chip" onclick="pageAsk('Recommend upsell opportunities')">Upsell ideas</button>
-          <button class="chip" onclick="pageAsk('Forecast cash flow')">Cash flow</button>
-          <button class="chip" onclick="pageAsk('Detect duplicate accounts')">Data cleanup</button>
         </div>
         <form class="d-flex gap-2" onsubmit="return pageSubmit(event)">
-          <input type="text" id="pagePrompt" class="form-control" placeholder="Ask anything…" autocomplete="off">
+          <input type="text" id="pagePrompt" class="form-control" placeholder="Ask anything, or run an agent…" autocomplete="off">
           <button class="btn btn-ai" type="submit"><i class="fa-solid fa-paper-plane"></i></button>
         </form>
       </div>
     </div>
   </div>
   <div class="col-lg-4">
+    <div class="card section-card mb-3">
+      <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-calendar-days me-2 text-primary"></i><span id="mpMeetingsTitle">Next 24 Hours</span></h6></div>
+      <div class="card-body pt-2" id="mpMeetingsList">
+        <div class="text-muted small py-2">Loading…</div>
+      </div>
+    </div>
     <div class="card section-card">
       <div class="card-header bg-white border-0 pt-3 pb-0"><h6 class="fw-semibold mb-0"><i class="fa-solid fa-clock-rotate-left me-2 text-muted"></i>Recent Questions</h6></div>
       <div class="card-body pt-2">
@@ -52,6 +82,75 @@
 
 {% block scripts %}
 <script>
+// Map an intent to a Refold agent workflow. Reuses the global render functions from app.js.
+const CHAT_AGENTS = {
+  'meeting-prep': {label: 'Meeting-Prep', run: '/api/meeting-prep/run', status: '/api/meeting-prep/status/', body: {hours: 24}, render: x => renderMeetingPrep(x, 24, Date.now())},
+  'renewal':      {label: 'Renewal', run: '/api/renewal-prep/run', status: '/api/renewal-prep/status/', body: {days: 90}, render: x => renderRenewalPrep(x, 90, Date.now())},
+  'churn':        {label: 'Churn Sentinel', run: '/api/churn-sentinel/run', status: '/api/churn-sentinel/status/', body: {limit: 10}, render: x => renderChurnSentinel(x, 10, Date.now())},
+  'pipeline':     {label: 'Pipeline Hygiene', run: '/api/pipeline-hygiene/run', status: '/api/pipeline-hygiene/status/', body: {limit: 10}, render: x => renderPipelineHygiene(x, 10, Date.now())},
+  'forecast':     {label: 'Forecast', run: '/api/forecast/run', status: '/api/forecast/status/', body: {days: 90}, render: x => renderForecast(x, 90, Date.now())},
+  'briefing':     {label: 'Briefing', run: '/api/briefing/run', status: '/api/briefing/status/', body: {days: 7}, render: x => renderBriefing(x, 7, Date.now())},
+};
+
+function detectAgent(p) {
+  const s = p.toLowerCase();
+  if (/\b(prep|prepare)\b/.test(s) || /meeting/.test(s) || /upcoming/.test(s)) return 'meeting-prep';
+  if (/renew/.test(s)) return 'renewal';
+  if (/churn/.test(s) || /at[- ]risk/.test(s) || /save[- ]play/.test(s)) return 'churn';
+  if (/pipeline/.test(s) || /hygiene/.test(s) || /clean\s*up/.test(s) || /stale/.test(s)) return 'pipeline';
+  if (/forecast/.test(s) || /\bcommit\b/.test(s) || /weighted/.test(s) || /quarter/.test(s)) return 'forecast';
+  if (/briefing/.test(s) || /morning brief/.test(s) || /what changed/.test(s)) return 'briefing';
+  return null;
+}
+
+function chatScroll() { const b = document.getElementById('pageAiMessages'); b.scrollTop = b.scrollHeight; }
+
+function chatAgentError(d) {
+  d = d || {};
+  return `<div class="alert alert-warning mb-0 py-2 small"><i class="fa-solid fa-triangle-exclamation me-1"></i>${escapeHtml(d.error || 'The agent could not run.')}${d.hint ? `<div class="text-muted mt-1">${escapeHtml(d.hint)}</div>` : ''}</div>`;
+}
+
+// The Expand/Collapse-all buttons in the shared renderers target a fixed page container;
+// strip them when embedding a result in the chat stream (per-card collapse still works).
+function chatClean(html) { return String(html).replace(/<div class="btn-group btn-group-sm">[\s\S]*?<\/div>/, ''); }
+
+function chatRunAgent(key) {
+  const cfg = CHAT_AGENTS[key];
+  const box = document.getElementById('pageAiMessages');
+  const bubble = document.createElement('div');
+  bubble.className = 'ai-msg ai';
+  bubble.innerHTML = `<div class="text-muted small"><span class="spinner-border spinner-border-sm me-2 text-primary"></span>Running the <b>${cfg.label}</b> agent…</div>`;
+  box.appendChild(bubble); chatScroll();
+
+  const started = Date.now();
+  fetch(cfg.run, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cfg.body)})
+    .then(async r => ({ok: r.ok, data: await r.json()}))
+    .then(({ok, data}) => {
+      if (!ok || data.error || !data.execution_id) { bubble.innerHTML = chatAgentError(data); chatScroll(); return; }
+      const poll = () => {
+        fetch(cfg.status + encodeURIComponent(data.execution_id))
+          .then(async r => ({ok: r.ok, data: await r.json()}))
+          .then(({ok, data: st}) => {
+            if (!ok || st.error) { bubble.innerHTML = chatAgentError(st); chatScroll(); return; }
+            if (st.state === 'success') {
+              bubble.innerHTML = `<div class="small text-muted mb-2">Here’s what the <b>${cfg.label}</b> agent found:</div>` + chatClean(cfg.render(st.result));
+              if (window.mpStartRelTimer) mpStartRelTimer();
+              chatScroll(); return;
+            }
+            if (st.state === 'error') { bubble.innerHTML = chatAgentError({error: 'The workflow reported a failure.'}); chatScroll(); return; }
+            if (Date.now() - started > MP_MAX_MS) { bubble.innerHTML = chatAgentError({error: 'Timed out waiting for the agent.'}); chatScroll(); return; }
+            setTimeout(poll, MP_POLL_INTERVAL);
+          })
+          .catch(() => {
+            if (Date.now() - started > MP_MAX_MS) { bubble.innerHTML = chatAgentError({error: 'Lost connection while running the agent.'}); return; }
+            setTimeout(poll, MP_POLL_INTERVAL);
+          });
+      };
+      setTimeout(poll, MP_POLL_INTERVAL);
+    })
+    .catch(() => { bubble.innerHTML = chatAgentError({error: 'Could not reach the agent.'}); chatScroll(); });
+}
+
 function pageAsk(prompt) { document.getElementById('pagePrompt').value = prompt; pageSend(); }
 function pageSubmit(e) { e.preventDefault(); pageSend(); return false; }
 function pageSend() {
@@ -60,15 +159,19 @@ function pageSend() {
   if (!prompt) return;
   const box = document.getElementById('pageAiMessages');
   box.insertAdjacentHTML('beforeend', `<div class="ai-msg user">${escapeHtml(prompt)}</div>`);
+  input.value = '';
+  chatScroll();
+
+  const agent = detectAgent(prompt);
+  if (agent && CHAT_AGENTS[agent]) { chatRunAgent(agent); return; }  // dispatch to a real agent
+
   const typing = document.createElement('div');
   typing.className = 'ai-msg ai typing'; typing.textContent = 'Thinking';
-  box.appendChild(typing); box.scrollTop = box.scrollHeight;
-  input.value = '';
+  box.appendChild(typing); chatScroll();
   fetch('/api/ai/chat', {method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({prompt: prompt})})
     .then(r => r.json()).then(d => {
-      setTimeout(() => { typing.classList.remove('typing'); typing.innerHTML = mdLite(d.response);
-        box.scrollTop = box.scrollHeight; }, 500);
+      setTimeout(() => { typing.classList.remove('typing'); typing.innerHTML = mdLite(d.response); chatScroll(); }, 500);
     });
 }
 </script>

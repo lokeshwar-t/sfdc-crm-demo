@@ -200,7 +200,8 @@ def reports():
 @login_required
 def ai_chat():
     history = AIHistory.query.filter_by(user_id=current_user.id).order_by(AIHistory.created_at.desc()).limit(10).all()
-    return render_template("ai_chat.html", history=history)
+    return render_template("ai_chat.html", history=history,
+                           mp_windows=current_app.config["MEETING_PREP_WINDOWS"])
 
 
 @mod_bp.route("/search")

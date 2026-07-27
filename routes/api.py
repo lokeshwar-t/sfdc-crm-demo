@@ -155,6 +155,12 @@ def _short(v, n=600):
 def _refold_call(method, url, headers, body=None):
     """Make one Refold request. Returns (ok, status_code, parsed). Never raises."""
     data = json.dumps(body).encode("utf-8") if body is not None else None
+    # Some Refold hosts sit behind Cloudflare, which blocks the default
+    # python-urllib User-Agent (HTTP 403, error 1010). Send a browser UA.
+    headers = dict(headers)
+    headers.setdefault("User-Agent",
+                       "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36")
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     timeout = current_app.config.get("REFOLD_HTTP_TIMEOUT", 30)
     try:

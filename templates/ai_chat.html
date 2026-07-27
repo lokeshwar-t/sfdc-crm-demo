@@ -133,7 +133,9 @@ function chatRunAgent(key) {
           .then(({ok, data: st}) => {
             if (!ok || st.error) { bubble.innerHTML = chatAgentError(st); chatScroll(); return; }
             if (st.state === 'success') {
-              bubble.innerHTML = `<div class="small text-muted mb-2">Here’s what the <b>${cfg.label}</b> agent found:</div>` + chatClean(cfg.render(st.result));
+              // .ai-msg is white-space:pre-wrap (for chat text); reset to normal so the
+              // card HTML's newlines/indentation don't render as blank gaps.
+              bubble.innerHTML = `<div style="white-space:normal"><div class="small text-muted mb-2">Here’s what the <b>${cfg.label}</b> agent found:</div>${chatClean(cfg.render(st.result))}</div>`;
               if (window.mpStartRelTimer) mpStartRelTimer();
               chatScroll(); return;
             }

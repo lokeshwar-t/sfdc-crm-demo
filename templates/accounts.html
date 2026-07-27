@@ -46,8 +46,7 @@
         <td class="text-nowrap">
           <button class="edit-btn" title="Edit account" onclick="openEdit('editAccountModal', this)"
             data-record='{{ {"id": a.id, "name": a.name, "industry": a.industry, "region": a.region, "segment": a.segment, "website": a.website or "", "employees": a.employees or "", "arr": a.arr or 0, "type": "customer" if a.is_customer else "prospect"}|tojson }}'>
-            <i class="fa-solid fa-pen fa-xs"></i></button>
-          {{ ai_button("", "Summarize this account", a.id, "btn-light") }}</td>
+            <i class="fa-solid fa-pen fa-xs"></i></button></td>
       </tr>
       {% endfor %}
       </tbody>

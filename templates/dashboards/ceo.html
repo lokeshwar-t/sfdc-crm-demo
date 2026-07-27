@@ -64,7 +64,7 @@
     <div class="card section-card">
       <div class="card-header bg-white border-0 pt-3 pb-0 d-flex justify-content-between align-items-center">
         <h6 class="fw-semibold mb-0"><i class="fa-solid fa-triangle-exclamation text-danger me-2"></i>Top Risks</h6>
-        {{ ai_button("Analyze risks", "Which customers are at risk?") }}
+        <a href="{{ url_for('mod.customer_success') }}?agent=churn" class="btn btn-ai btn-sm"><i class="fa-solid fa-robot me-1"></i>Analyze risks</a>
       </div>
       <div class="card-body p-0">
         <table class="table table-hover align-middle mb-0">

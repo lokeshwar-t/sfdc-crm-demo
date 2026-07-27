@@ -1249,6 +1249,23 @@ function renderForecast(exec, days, ts) {
   return html;
 }
 
+// Scroll to an on-page agent panel and run it (used by the per-page "run agent" buttons).
+function agentJump(cardId, fnName) {
+  const card = document.getElementById(cardId);
+  if (card) card.scrollIntoView({behavior: 'smooth', block: 'start'});
+  if (typeof window[fnName] === 'function') setTimeout(() => window[fnName](), 350);
+}
+
+// Auto-run an agent when arriving via ?agent=<key> (cross-page "run" links).
+const AGENT_JUMP = {
+  churn: ['churnSentinelCard', 'runChurnSentinel'],
+  briefing: ['briefingAgentCard', 'runBriefing'],
+  pipeline: ['pipelineHygieneCard', 'runPipelineHygiene'],
+  forecast: ['forecastCard', 'runForecast'],
+  'meeting-prep': ['meetingPrepCard', 'runMeetingPrep'],
+  renewal: ['renewalPrepCard', 'runRenewalPrep'],
+};
+
 // Restore the last briefing on load so tab navigation doesn't force a re-run.
 function mpInit() {
   if (document.getElementById('mpResult')) {
@@ -1269,6 +1286,11 @@ function mpInit() {
   }
   if (document.getElementById('fcResult')) {
     fcRestore();
+  }
+  // cross-page "run this agent" links: /page?agent=churn → scroll + run on arrival
+  const want = new URLSearchParams(location.search).get('agent');
+  if (want && AGENT_JUMP[want] && document.getElementById(AGENT_JUMP[want][0])) {
+    agentJump(AGENT_JUMP[want][0], AGENT_JUMP[want][1]);
   }
 }
 if (document.readyState === 'loading') {

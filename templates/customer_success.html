@@ -7,7 +7,6 @@
     <h1 class="page-title mb-0">Customer Health</h1>
     <div class="text-muted small">All customers, scored by usage · meetings · training · NPS · renewal · payment · adoption</div>
   </div>
-  {{ ai_button("Find risks", "Which customers are at risk?") }}
 </div>
 
 {% set health_filters = [("Green","fa-circle-check","success"),("Yellow","fa-circle-exclamation","warning"),("Red","fa-circle-xmark","danger")] %}
@@ -50,7 +49,6 @@
           <button class="edit-btn" title="Edit health" onclick="openEdit('editHealthModal', this)"
             data-record='{{ {"id": h.id, "score": h.score, "status": h.status, "trend": h.trend, "product_usage": h.product_usage, "adoption": h.adoption, "training_completion": h.training_completion, "nps": h.nps, "exec_meetings": h.exec_meetings}|tojson }}'>
             <i class="fa-solid fa-pen"></i></button>
-          {{ ai_button("", "Identify churn risk", a.id, "btn-light") }}
         </td>
       </tr>
       {% endfor %}

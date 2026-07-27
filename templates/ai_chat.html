@@ -92,6 +92,35 @@ const CHAT_AGENTS = {
   'briefing':     {label: 'Briefing', run: '/api/briefing/run', status: '/api/briefing/status/', body: {days: 7}, render: x => renderBriefing(x, 7, Date.now())},
 };
 
+// Account names (for spotting a single-entity question client-side).
+const ACCOUNT_NAMES = [{% for a in quick_accounts %}{{ a[1]|tojson }}{{ "," if not loop.last }}{% endfor %}];
+
+// A "focus" question is about ONE record (a named account/meeting, or "the top risk").
+// Those get a single card + summary from the copilot — not a full agent sweep.
+function detectFocus(p) {
+  const s = p.toLowerCase();
+  if (/(top|most|highest|worst|biggest|number one|#1|single)/.test(s) && /(risk|churn)/.test(s)) return true;
+  for (const nm of ACCOUNT_NAMES) { if (nm && nm.length >= 5 && s.includes(nm.toLowerCase())) return true; }
+  return false;
+}
+
+function renderFocusCard(f) {
+  if (!f) return '';
+  const tone = {green: 'bg-success-subtle text-success', yellow: 'bg-warning-subtle text-warning', red: 'bg-danger-subtle text-danger'};
+  const facts = (f.facts || []).map(x =>
+    `<span class="badge ${tone[x.tone] || 'bg-light text-dark border'} me-1 mb-1">${escapeHtml(x.label)}: ${escapeHtml(String(x.value))}</span>`).join('');
+  const icon = f.kind === 'meeting' ? 'fa-calendar-check' : 'fa-building';
+  const link = (f.link && f.link !== '#') ? `<a href="${f.link}" class="btn btn-sm btn-light">Open <i class="fa-solid fa-arrow-right ms-1"></i></a>` : '';
+  return `<div class="card section-card mb-2"><div class="card-body py-2">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div><div class="fw-semibold"><i class="fa-solid ${icon} me-2 text-primary"></i>${escapeHtml(f.title)}</div>
+          ${f.subtitle ? `<div class="text-muted small">${escapeHtml(f.subtitle)}</div>` : ''}</div>
+        ${link}
+      </div>
+      <div class="mt-2">${facts}</div>
+    </div></div>`;
+}
+
 function detectAgent(p) {
   const s = p.toLowerCase();
   if (/\b(prep|prepare)\b/.test(s) || /meeting/.test(s) || /upcoming/.test(s)) return 'meeting-prep';
@@ -164,8 +193,9 @@ function pageSend() {
   input.value = '';
   chatScroll();
 
+  // A single-entity / "top X" question → copilot focus card (not a full sweep).
   const agent = detectAgent(prompt);
-  if (agent && CHAT_AGENTS[agent]) { chatRunAgent(agent); return; }  // dispatch to a real agent
+  if (agent && CHAT_AGENTS[agent] && !detectFocus(prompt)) { chatRunAgent(agent); return; }
 
   const typing = document.createElement('div');
   typing.className = 'ai-msg ai typing'; typing.textContent = 'Thinking';
@@ -173,7 +203,12 @@ function pageSend() {
   fetch('/api/ai/chat', {method: 'POST', headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({prompt: prompt})})
     .then(r => r.json()).then(d => {
-      setTimeout(() => { typing.classList.remove('typing'); typing.innerHTML = mdLite(d.response); chatScroll(); }, 500);
+      setTimeout(() => {
+        typing.classList.remove('typing');
+        const card = d.focus ? renderFocusCard(d.focus) : '';
+        typing.innerHTML = `<div style="white-space:normal">${card}<div>${mdLite(d.response)}</div></div>`;
+        chatScroll();
+      }, 500);
     });
 }
 </script>

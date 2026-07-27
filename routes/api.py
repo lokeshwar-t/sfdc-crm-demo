@@ -1,17 +1,92 @@
 import json
+import re
 import urllib.request
 import urllib.error
-from datetime import date, timedelta
-from flask import Blueprint, jsonify, request, current_app
+from datetime import date, timedelta, datetime
+from flask import Blueprint, jsonify, request, current_app, url_for
 from flask_login import login_required, current_user
 from sqlalchemy import func
 from database import db
-from models import Account, Opportunity, Renewal, CustomerHealth, User, Role, UsageMetric, Notification
+from models import (Account, Opportunity, Renewal, CustomerHealth, User, Role,
+                    UsageMetric, Notification, Meeting)
 import ai_service
 import agent_core as core
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 OPEN_STAGES = ["Lead", "Qualified", "Discovery", "Proposal", "Negotiation"]
+
+
+# ---- copilot entity resolution: pull the ONE record a question is about ----
+def _money(n):
+    n = n or 0
+    if abs(n) >= 1_000_000:
+        return f"${n/1_000_000:.1f}M"
+    if abs(n) >= 1_000:
+        return f"${n/1_000:.0f}K"
+    return f"${n:.0f}"
+
+
+def _resolve_focus(prompt):
+    """Best-effort: map a question to a single account or meeting. (kind, obj)."""
+    p = (prompt or "").lower()
+    # 1) the single top at-risk customer (superlative phrasing)
+    if re.search(r"(top|most|highest|worst|biggest|number one|#1|single)", p) and re.search(r"(risk|churn)", p):
+        rows = core.at_risk_accounts(1)
+        if rows:
+            return "account", rows[0][0]
+    # 2) a named account mentioned in the prompt (longest match wins)
+    named = None
+    for a in Account.query.all():
+        nm = (a.name or "").lower()
+        if len(nm) >= 5 and nm in p and (named is None or len(nm) > len(named.name)):
+            named = a
+    # 3) meeting intent → that account's next meeting, else a meeting by title
+    if named and re.search(r"(meeting|prep|call|qbr|demo|kickoff|discovery)", p):
+        m = (Meeting.query.filter(Meeting.account_id == named.id,
+                                  Meeting.start_time >= datetime.utcnow())
+             .order_by(Meeting.start_time).first())
+        if m:
+            return "meeting", m
+    if named:
+        return "account", named
+    for m in (Meeting.query.filter(Meeting.start_time >= datetime.utcnow())
+              .order_by(Meeting.start_time).limit(200)):
+        if m.title and len(m.title) >= 6 and m.title.lower() in p:
+            return "meeting", m
+    return None, None
+
+
+def _focus_card(kind, obj):
+    if kind == "account":
+        a, h = obj, obj.health
+        renewal = (Renewal.query.filter_by(account_id=a.id)
+                   .order_by(Renewal.renewal_date).first())
+        opps = [o for o in a.opportunities if o.stage not in ("Closed Won", "Closed Lost")]
+        facts = [
+            {"label": "Health", "value": f"{h.score} ({h.status})" if h else "—",
+             "tone": (h.status.lower() if h else "")},
+            {"label": "ARR", "value": _money(a.arr)},
+            {"label": "CSM", "value": a.csm.name if a.csm else "—"},
+            {"label": "Open opps", "value": f"{len(opps)} · {_money(sum(o.amount or 0 for o in opps))}"},
+        ]
+        if renewal and renewal.renewal_date:
+            facts.append({"label": "Next renewal",
+                          "value": f"{renewal.renewal_date.isoformat()} · {renewal.likelihood}%"})
+        return {"kind": "account", "title": a.name,
+                "subtitle": " · ".join(x for x in [a.segment, a.industry] if x),
+                "facts": facts, "link": url_for("mod.account_360", account_id=a.id)}
+    m, a = obj, obj.account
+    h = a.health if a else None
+    facts = [
+        {"label": "When", "value": m.start_time.strftime("%a %b %d, %I:%M %p") if m.start_time else "—"},
+        {"label": "Type", "value": m.meeting_type or "—"},
+        {"label": "Account", "value": a.name if a else "—"},
+        {"label": "Health", "value": f"{h.score} ({h.status})" if h else "—",
+         "tone": (h.status.lower() if h else "")},
+    ]
+    return {"kind": "meeting", "title": m.title, "subtitle": m.location or "",
+            "facts": facts,
+            "link": url_for("mod.account_360", account_id=a.id) if a else "#"}
 
 
 @api_bp.route("/ai/chat", methods=["POST"])
@@ -20,11 +95,21 @@ def ai_chat():
     data = request.get_json(force=True)
     prompt = data.get("prompt", "")
     account = None
+    focus = None
     if data.get("account_id"):
         account = db.session.get(Account, int(data["account_id"]))
+    else:
+        # entity-aware copilot: resolve the single record this question is about
+        kind, obj = _resolve_focus(prompt)
+        if kind == "account":
+            account = obj
+            focus = _focus_card(kind, obj)
+        elif kind == "meeting":
+            account = obj.account
+            focus = _focus_card(kind, obj)
     answer = ai_service.ask(prompt, user=current_user, account=account,
                             context_label=data.get("context", "global"))
-    return jsonify({"response": answer})
+    return jsonify({"response": answer, "focus": focus})
 
 
 # Upcoming meetings for the briefing panel — uses the SAME source the agent
